@@ -188,6 +188,7 @@ class _ProductsTab extends StatelessWidget {
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final product = products[index];
+            final effectivePrice = stocks[product.id]?.price ?? product.price;
             return ListTile(
               leading: ProductPresentation(product: product),
               title: Text(product.name),
@@ -195,7 +196,12 @@ class _ProductsTab extends StatelessWidget {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('\$${product.price.toStringAsFixed(2)}'),
+                  Flexible(
+                    child: Text(
+                      '\$${effectivePrice.toStringAsFixed(2)}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   PopupMenuButton<String>(
                     tooltip: 'Opciones de producto',
                     onSelected: (value) async {

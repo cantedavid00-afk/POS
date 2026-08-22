@@ -911,7 +911,12 @@ Future<void> _handleSetStorePrice(Map<String, dynamic> data) async {
       .collection('businesses').doc(businessId)
       .collection('products').doc(productId)
       .collection('stockByStore').doc(storeId)
-      .set({'price': price}, SetOptions(merge: true));
+      .set({
+    'businessId': businessId,
+    'storeId': storeId,
+    'productId': productId,
+    'price': price,
+  }, SetOptions(merge: true));
 }
 
 /// Resuelve o crea el producto "Pollo Entero" (misma lógica que

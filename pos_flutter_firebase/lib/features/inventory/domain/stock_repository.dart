@@ -8,6 +8,13 @@ abstract class StockRepository {
 
   Map<String, ProductStock>? getCachedStock(String businessId);
 
+  /// Lee una sola vez el stock/precio de un producto en una sucursal.
+  Future<ProductStock?> getStoreProductStock({
+    required String businessId,
+    required String storeId,
+    required String productId,
+  });
+
   Future<void> applyLocalStockDelta({
     required String businessId,
     required String productId,

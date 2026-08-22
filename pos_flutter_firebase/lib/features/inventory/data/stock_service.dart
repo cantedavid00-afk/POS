@@ -24,6 +24,11 @@ class StockService implements StockRepository {
 
     final subscriptions = <StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>{};
 
+    // Mapa acumulado que persiste entre re-suscripciones: evita emitir mapas
+    // parciales/vacios cuando la coleccion de productos cambia y se vuelven a
+    // crear los listeners uno por uno (causaba parpadeo de precios/stock).
+    final result = <String, ProductStock>{};
+
     void disposeStockSubscriptions() {
       for (final sub in subscriptions) {
         sub.cancel();
@@ -35,7 +40,8 @@ class StockService implements StockRepository {
     // que las reglas de Firestore permiten. No usa collectionGroup.
     void subscribeToProducts(QuerySnapshot<Map<String, dynamic>> products) {
       disposeStockSubscriptions();
-      final result = <String, ProductStock>{};
+      final productIds = products.docs.map((d) => d.id).toSet();
+      result.removeWhere((productId, _) => !productIds.contains(productId));
       for (final productDoc in products.docs) {
         final productId = productDoc.id;
         final sub = _db
@@ -49,7 +55,15 @@ class StockService implements StockRepository {
             .listen((stockDoc) {
           if (stockDoc.exists) {
             final stock = ProductStock.fromDoc(stockDoc);
-            result[stock.productId] = stock;
+            final key = stock.productId.isNotEmpty ? stock.productId : productId;
+            result[key] = ProductStock(
+              productId: key,
+              storeId: stock.storeId,
+              stockQuantity: stock.stockQuantity,
+              lowStockAlertQuantity: stock.lowStockAlertQuantity,
+              chickenCount: stock.chickenCount,
+              price: stock.price,
+            );
           } else {
             result.remove(productId);
           }
@@ -150,23 +164,61 @@ class StockService implements StockRepository {
         .doc(productId)
         .collection('stockByStore')
         .doc(storeId)
-        .set({'price': price}, SetOptions(merge: true));
+        .set({
+      'businessId': businessId,
+      'storeId': storeId,
+      'productId': productId,
+      'price': price,
+    }, SetOptions(merge: true));
 
-    final data = LocalDatabase.getCachedProductStock(businessId);
-    if (data == null) return;
-    final updatedList = data.map((stock) {
-      if (stock.productId == productId && stock.storeId == storeId) {
-        return ProductStock(
-          productId: stock.productId,
-          storeId: stock.storeId,
-          stockQuantity: stock.stockQuantity,
-          lowStockAlertQuantity: stock.lowStockAlertQuantity,
-          chickenCount: stock.chickenCount,
-          price: price,
-        );
-      }
-      return stock;
-    }).toList();
+    final data = LocalDatabase.getCachedProductStock(businessId) ?? const <ProductStock>[];
+    final existingIndex = data.indexWhere((s) => s.productId == productId && s.storeId == storeId);
+    final updatedList = List<ProductStock>.from(data);
+    if (existingIndex >= 0) {
+      final stock = data[existingIndex];
+      updatedList[existingIndex] = ProductStock(
+        productId: stock.productId,
+        storeId: stock.storeId,
+        stockQuantity: stock.stockQuantity,
+        lowStockAlertQuantity: stock.lowStockAlertQuantity,
+        chickenCount: stock.chickenCount,
+        price: price,
+      );
+    } else {
+      updatedList.add(ProductStock(
+        productId: productId,
+        storeId: storeId,
+        stockQuantity: 0,
+        lowStockAlertQuantity: 0,
+        price: price,
+      ));
+    }
     await LocalDatabase.cacheProductStock(businessId, updatedList);
+  }
+
+  @override
+  Future<ProductStock?> getStoreProductStock({
+    required String businessId,
+    required String storeId,
+    required String productId,
+  }) async {
+    final doc = await _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('products')
+        .doc(productId)
+        .collection('stockByStore')
+        .doc(storeId)
+        .get();
+    if (!doc.exists) return null;
+    final stock = ProductStock.fromDoc(doc);
+    return ProductStock(
+      productId: stock.productId.isEmpty ? productId : stock.productId,
+      storeId: stock.storeId,
+      stockQuantity: stock.stockQuantity,
+      lowStockAlertQuantity: stock.lowStockAlertQuantity,
+      chickenCount: stock.chickenCount,
+      price: stock.price,
+    );
   }
 }

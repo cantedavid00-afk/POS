@@ -81,6 +81,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _presentationType = product.presentationType;
     _presentationShape = product.presentationShape;
     _presentationColor = product.presentationColor;
+    _loadStorePrice();
+  }
+
+  /// Precarga el precio por sucursal existente para que el campo no aparezca
+  /// vacio al editar un producto que ya tiene precio asignado.
+  Future<void> _loadStorePrice() async {
+    try {
+      final stock = await context.read<StockRepository>().getStoreProductStock(
+            businessId: widget.businessId,
+            storeId: widget.storeId,
+            productId: widget.product!.id,
+          );
+      if (!mounted || _storePriceController.text.isNotEmpty) return;
+      if (stock?.price != null) {
+        setState(() => _storePriceController.text = _formatNumber(stock!.price!));
+      }
+    } catch (_) {
+      // Silencioso: el campo simplemente queda vacio si no se puede leer.
+    }
   }
 
   Future<void> _loadSuggestedRef() async {
@@ -226,6 +245,35 @@ class _AddProductScreenState extends State<AddProductScreen> {
       for (final store in stores) store.id: TextEditingController(),
     };
 
+    // Precarga los precios por sucursal ya guardados para que el dialogo
+    // muestre los valores actuales en vez de campos vacios.
+    final existingPrices = <String, double?>{};
+    try {
+      final stockRepo = context.read<StockRepository>();
+      for (final store in stores) {
+        final stock = await stockRepo.getStoreProductStock(
+          businessId: widget.businessId,
+          storeId: store.id,
+          productId: product.id,
+        );
+        existingPrices[store.id] = stock?.price;
+      }
+    } catch (_) {
+      // Si falla la lectura, los campos quedan vacios y no se borra nada.
+    }
+    if (!mounted) {
+      for (final controller in controllers.values) {
+        controller.dispose();
+      }
+      return;
+    }
+    for (final entry in existingPrices.entries) {
+      final price = entry.value;
+      if (price != null && controllers[entry.key] != null) {
+        controllers[entry.key]!.text = _formatNumber(price);
+      }
+    }
+
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -272,7 +320,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final stockRepo = context.read<StockRepository>();
       for (final store in stores) {
         final text = controllers[store.id]!.text.trim().replaceAll(',', '.');
-        if (text.isEmpty) continue;
+        final hadPrice = existingPrices[store.id] != null;
+        if (text.isEmpty) {
+          // Campo vacio = usar precio general: limpia el override si existia.
+          if (hadPrice) {
+            await stockRepo.setStorePrice(
+              businessId: widget.businessId,
+              storeId: store.id,
+              productId: product.id,
+              price: null,
+            );
+          }
+          continue;
+        }
         final price = double.tryParse(text);
         if (price == null || price < 0) continue;
         await stockRepo.setStorePrice(
