@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../shared/models/sale.dart';
@@ -20,22 +22,88 @@ class ShiftService implements ShiftRepository {
     required String storeId,
     required String employeeId,
   }) {
-    return _db
-        .collection('businesses')
-        .doc(businessId)
-        .collection('shifts')
-        .where('status', isEqualTo: 'open')
-        .snapshots()
-        .map((snapshot) {
-      for (final doc in snapshot.docs) {
-        final shift = Shift.fromDoc(doc);
-        if (shift.storeId == storeId && shift.employeeId == employeeId) {
-          LocalDatabase.cacheShifts(businessId, [shift]);
-          return shift;
+    // Combina el stream de Firestore con turnos abiertos creados offline que
+    // aun estan en cola: sin esto, abrir caja sin conexion dejaria el POS
+    // bloqueado en "Abrir caja" hasta recuperar red.
+    late final StreamController<Shift?> controller;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? sub;
+
+    Shift? localCandidate;
+    Shift? remoteOpen;
+    final remoteKnownIds = <String>{};
+
+    Future<void> loadLocalCandidate() async {
+      List<Shift>? cached;
+      try {
+        cached = LocalDatabase.getCachedShifts(businessId);
+      } catch (_) {
+        cached = null;
+      }
+      for (final shift in cached ?? const <Shift>[]) {
+        if (shift.storeId == storeId && shift.employeeId == employeeId && shift.status == 'open') {
+          localCandidate = shift;
+          return;
         }
       }
-      return null;
-    });
+      localCandidate = null;
+    }
+
+    void emit() {
+      // Si el ID del turno local ya existe en el servidor (en cualquier estado,
+      // p. ej. cerrado), la copia local esta obsoleta y se descarta.
+      if (localCandidate != null && remoteKnownIds.contains(localCandidate!.id)) {
+        localCandidate = null;
+      }
+      controller.add(remoteOpen ?? localCandidate);
+    }
+
+    controller = StreamController<Shift?>(
+      onListen: () async {
+        await loadLocalCandidate();
+        emit();
+        sub = _db
+            .collection('businesses')
+            .doc(businessId)
+            .collection('shifts')
+            .snapshots()
+            .listen(
+          (snapshot) {
+            Shift? match;
+            for (final doc in snapshot.docs) {
+              remoteKnownIds.add(doc.id);
+              final shift = Shift.fromDoc(doc);
+              if (match == null &&
+                  shift.status == 'open' &&
+                  shift.storeId == storeId &&
+                  shift.employeeId == employeeId) {
+                match = shift;
+              }
+            }
+            remoteOpen = match;
+            if (match != null) {
+              // Cache fusionada: conserva turnos offline aun no sincronizados.
+              List<Shift> existing = const <Shift>[];
+              try {
+                existing = LocalDatabase.getCachedShifts(businessId) ?? const <Shift>[];
+              } catch (_) {
+                existing = const <Shift>[];
+              }
+              final merged = <Shift>[
+                ...existing.where((s) => !remoteKnownIds.contains(s.id) && s != match),
+                match!,
+              ];
+              LocalDatabase.cacheShifts(businessId, merged);
+            }
+            emit();
+          },
+          onError: (_) {
+            // Sin red: conservamos lo que ya se emitio (candidato local).
+          },
+        );
+      },
+      onCancel: () => sub?.cancel(),
+    );
+    return controller.stream;
   }
 
   Future<Shift?> getOpenShift({
@@ -151,12 +219,63 @@ class ShiftService implements ShiftRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } else {
+      // Sin conexion: verifica contra la caché local que no haya otro turno abierto.
+      List<Shift>? cachedForCheck;
+      try {
+        cachedForCheck = LocalDatabase.getCachedShifts(businessId);
+      } catch (_) {
+        cachedForCheck = null;
+      }
+      final alreadyOpenOffline = (cachedForCheck ?? const <Shift>[]).any(
+            (shift) => shift.status == 'open' && shift.storeId == storeId && shift.employeeId == employeeId,
+          );
+      if (alreadyOpenOffline) {
+        throw StateError('Ya tienes una caja abierta');
+      }
+
+      // ID determinista: apertura, movimientos de efectivo y cierre referencian
+      // el mismo documento cuando el handler lo materialice en Firestore.
+      final shiftId = 'OFFLINE-${DateTime.now().millisecondsSinceEpoch}';
       await SyncQueue.enqueue(type: 'openShift', data: {
         'businessId': businessId,
         'storeId': storeId,
         'employeeId': employeeId,
         'openingCash': openingCash,
+        'shiftId': shiftId,
       });
+
+      // Turno local para desbloquear el POS de inmediato hasta que sincronice.
+      final now = DateTime.now();
+      final localShift = Shift(
+        id: shiftId,
+        businessId: businessId,
+        storeId: storeId,
+        employeeId: employeeId,
+        status: 'open',
+        openingCash: openingCash,
+        closingCash: null,
+        cashSales: 0,
+        cardSales: 0,
+        totalSales: 0,
+        cashRefunds: 0,
+        depositsTotal: 0,
+        payoutsTotal: 0,
+        cashMovements: const [],
+        expectedCash: openingCash,
+        cashDifference: 0,
+        openedAt: now,
+        closedAt: null,
+      );
+      List<Shift> existingCache = const <Shift>[];
+      try {
+        existingCache = LocalDatabase.getCachedShifts(businessId) ?? const <Shift>[];
+      } catch (_) {
+        existingCache = const <Shift>[];
+      }
+      await LocalDatabase.cacheShifts(businessId, [
+        ...existingCache.where((s) => s.id != shiftId),
+        localShift,
+      ]);
     }
   }
 

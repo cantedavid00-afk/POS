@@ -570,19 +570,39 @@ Future<void> _handleCancelSale(Map<String, dynamic> data) async {
 Future<void> _handleOpenShift(Map<String, dynamic> data) async {
   final businessId = _str(data, 'businessId');
   final storeId = _str(data, 'storeId');
-  await _firestore.collection('businesses').doc(businessId).collection('shifts').add({
+  final shiftData = <String, dynamic>{
     'businessId': businessId,
     'storeId': storeId,
     'employeeId': _str(data, 'employeeId'),
     'openingCash': _dbl(data, 'openingCash'),
+    'closingCash': null,
     'totalSales': 0,
     'cashSales': 0,
     'cardSales': 0,
     'cashRefunds': 0,
+    'depositsTotal': 0,
+    'payoutsTotal': 0,
+    'cashMovements': [],
     'expectedCash': _dbl(data, 'openingCash'),
     'openedAt': FieldValue.serverTimestamp(),
+    'closedAt': null,
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
     'status': 'open',
-  });
+  };
+  final shiftsRef = _firestore.collection('businesses').doc(businessId).collection('shifts');
+  // ID determinista (del cliente) para que apertura/cierre/movimientos de
+  // efectivo hechos offline referencien el mismo documento y el reintento no
+  // duplique turnos.
+  final shiftId = _optString(data, 'shiftId') ?? _optString(data, 'clientOpId');
+  if (shiftId != null && shiftId.isNotEmpty) {
+    final ref = shiftsRef.doc(shiftId);
+    if ((await ref.get()).exists) return;
+    await ref.set(shiftData);
+  } else {
+    // Compatibilidad con operaciones antiguas en cola sin shiftId.
+    await shiftsRef.add(shiftData);
+  }
 }
 
 Future<void> _handleAddCashMovement(Map<String, dynamic> data) async {
@@ -733,7 +753,7 @@ Future<void> _handleDeactivateDiscount(Map<String, dynamic> data) async {
 
 Future<void> _handleAddEmployee(Map<String, dynamic> data) async {
   final businessId = _str(data, 'businessId');
-  await _firestore.collection('businesses').doc(businessId).collection('employees').add({
+  final employeeData = <String, dynamic>{
     'businessId': businessId,
     'authUid': '',
     'name': _str(data, 'name'),
@@ -747,7 +767,17 @@ Future<void> _handleAddEmployee(Map<String, dynamic> data) async {
     'active': true,
     'createdAt': FieldValue.serverTimestamp(),
     'updatedAt': FieldValue.serverTimestamp(),
-  });
+  };
+  final employeesRef = _firestore.collection('businesses').doc(businessId).collection('employees');
+  // Idempotencia: reintentos no duplican al empleado.
+  final clientOpId = data['clientOpId'] as String?;
+  if (clientOpId != null && clientOpId.isNotEmpty) {
+    final ref = employeesRef.doc(clientOpId);
+    if ((await ref.get()).exists) return;
+    await ref.set(employeeData);
+  } else {
+    await employeesRef.add(employeeData);
+  }
 }
 
 Future<void> _handleUpdateEmployee(Map<String, dynamic> data) async {
@@ -891,14 +921,24 @@ Future<void> _handleUpdateBusiness(Map<String, dynamic> data) async {
 
 Future<void> _handleAddStore(Map<String, dynamic> data) async {
   final businessId = _str(data, 'businessId');
-  await _firestore.collection('businesses').doc(businessId).collection('stores').add({
+  final storeData = <String, dynamic>{
     'businessId': businessId,
     'name': _str(data, 'name'),
     'address': _str(data, 'address'),
     'phone': _str(data, 'phone'),
     'active': true,
     'createdAt': FieldValue.serverTimestamp(),
-  });
+  };
+  final storesRef = _firestore.collection('businesses').doc(businessId).collection('stores');
+  // Idempotencia: reintentos no duplican la sucursal.
+  final clientOpId = data['clientOpId'] as String?;
+  if (clientOpId != null && clientOpId.isNotEmpty) {
+    final ref = storesRef.doc(clientOpId);
+    if ((await ref.get()).exists) return;
+    await ref.set(storeData);
+  } else {
+    await storesRef.add(storeData);
+  }
 }
 
 Future<void> _handleUpdateStore(Map<String, dynamic> data) async {
@@ -1136,7 +1176,13 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
   final movementsRef = _firestore.collection('businesses').doc(businessId).collection('inventoryMovements');
   await _firestore.runTransaction((txn) async {
     final transferSnap = await txn.get(transferRef);
-    if (!transferSnap.exists) return;
+    if (!transferSnap.exists) {
+      // El envio todavia no se ha sincronizado (sigue en la cola del
+      // dispositivo origen). Lanzar hace que la operacion se reintente mas
+      // tarde; completar silenciosamente perdiria la confirmacion para
+      // siempre y dejaria el stock sin ajustar.
+      throw StateError('El traspaso $transferId aun no existe (envio pendiente de sincronizar)');
+    }
     final transferData = transferSnap.data() as Map<String, dynamic>;
     // Idempotencia: solo se confirma un traspaso que siga en 'sent'.
     if (transferData['status'] != 'sent') return;
@@ -1227,6 +1273,39 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
   });
 }
 
+typedef _YieldRecord = ({String name, double weight, double percentage});
+
+List<_YieldRecord> _parseYields(dynamic raw) {
+  return ((raw as List<dynamic>?) ?? const []).map((_yield) {
+    final m = Map<String, dynamic>.from(_yield as Map);
+    return (
+      name: m['name'] as String,
+      weight: ((m['weight'] as num?) ?? 0).toDouble(),
+      percentage: ((m['percentage'] as num?) ?? 0).toDouble(),
+    );
+  }).toList();
+}
+
+/// Resuelve los productos (con trackStock activo) por nombre de seccion.
+/// Los nombres sin producto o sin trackStock se omiten (mismo criterio que
+/// ButcherStockService._applyStockChange).
+Future<Map<String, String>> _resolveTrackedProducts(String businessId, Iterable<String> sectionNames) async {
+  final productsRef = _firestore.collection('businesses').doc(businessId).collection('products');
+  final result = <String, String>{};
+  for (final name in sectionNames.toSet()) {
+    final products = await productsRef
+        .where('name', isEqualTo: name)
+        .where('active', isEqualTo: true)
+        .limit(1)
+        .get();
+    if (products.docs.isEmpty) continue;
+    final data = products.docs.first.data() as Map<String, dynamic>;
+    if (data['trackStock'] != true) continue;
+    result[name] = products.docs.first.id;
+  }
+  return result;
+}
+
 Future<void> _handleButcherEntry(Map<String, dynamic> data) async {
   final businessId = _str(data, 'businessId');
   final storeId = _str(data, 'storeId');
@@ -1235,46 +1314,75 @@ Future<void> _handleButcherEntry(Map<String, dynamic> data) async {
   final sourceStoreId = _optString(data, 'sourceStoreId');
   final clientOpId = data['clientOpId'] as String?;
   final createdAt = _clientTimestamp(data['createdAt']);
+  final yields = _parseYields(data['yields']);
 
   final receiptsRef = _firestore.collection('businesses').doc(businessId).collection('butcherReceipts');
   final receiptRef = (clientOpId != null && clientOpId.isNotEmpty)
       ? receiptsRef.doc(clientOpId)
       : receiptsRef.doc();
-  if (clientOpId != null && clientOpId.isNotEmpty) {
-    final existing = await receiptRef.get();
-    if (existing.exists) return;
-  }
 
-  await receiptRef.set({
-    'type': type,
-    'storeId': storeId,
-    'employeeId': employeeId,
-    if (type == 'chicken') 'chickenCount': _int(data, 'chickenCount'),
-    if (type == 'chicken') 'avgWeight': _dbl(data, 'avgWeight'),
-    'totalWeight': _dbl(data, 'totalWeight'),
-    'yields': data['yields'],
-    'sourceStoreId': sourceStoreId,
-    'status': 'active',
-    'consumedSections': [],
-    'createdAt': createdAt,
+  final productIdsBySection =
+      await _resolveTrackedProducts(businessId, yields.map((y) => y.name));
+
+  // Transaccion atomica: guard de existencia + recibo + ajustes de stock en
+  // una sola unidad. Antes, un crash entre el set del recibo y la suma de
+  // stock hacia que el reintento saltara por exists y los cortes nunca se
+  // sumaran al inventario.
+  await _firestore.runTransaction((txn) async {
+    if ((await txn.get(receiptRef)).exists) return;
+
+    final stockRefs = <String, DocumentReference<Map<String, dynamic>>>{};
+    final currentStocks = <String, double>{};
+    void queueRead(_YieldRecord y, String targetStoreId, String key) {
+      final productId = productIdsBySection[y.name];
+      if (productId == null) return;
+      stockRefs[key] = _firestore
+          .collection('businesses').doc(businessId)
+          .collection('products').doc(productId)
+          .collection('stockByStore').doc(targetStoreId);
+    }
+
+    for (final y in yields) {
+      queueRead(y, storeId, '${y.name}@$storeId');
+      if (sourceStoreId != null) queueRead(y, sourceStoreId, '${y.name}@$sourceStoreId');
+    }
+    for (final entry in stockRefs.entries) {
+      final snap = await txn.get(entry.value);
+      currentStocks[entry.key] =
+          (((snap.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
+    }
+
+    txn.set(receiptRef, {
+      'type': type,
+      'storeId': storeId,
+      'employeeId': employeeId,
+      if (type == 'chicken') 'chickenCount': _int(data, 'chickenCount'),
+      if (type == 'chicken') 'avgWeight': _dbl(data, 'avgWeight'),
+      'totalWeight': _dbl(data, 'totalWeight'),
+      'yields': data['yields'],
+      'sourceStoreId': sourceStoreId,
+      'status': 'active',
+      'consumedSections': [],
+      'createdAt': createdAt,
+    });
+
+    void applyDelta(_YieldRecord y, String targetStoreId, int multiplier) {
+      final key = '${y.name}@$targetStoreId';
+      final ref = stockRefs[key];
+      if (ref == null) return;
+      var newStock = (currentStocks[key] ?? 0) + (y.weight * multiplier);
+      if (newStock < 0) newStock = 0;
+      txn.set(ref, {
+        'stockQuantity': newStock,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    for (final y in yields) {
+      applyDelta(y, storeId, 1);
+      if (sourceStoreId != null) applyDelta(y, sourceStoreId, -1);
+    }
   });
-
-  final stockSvc = ButcherStockService(firestore: _firestore);
-  final yieldRecords = (data['yields'] as List<dynamic>)
-      .map((raw) {
-        final m = Map<String, dynamic>.from(raw as Map);
-        return (
-          name: m['name'] as String,
-          weight: ((m['weight'] as num?) ?? 0).toDouble(),
-          percentage: ((m['percentage'] as num?) ?? 0).toDouble(),
-        );
-      })
-      .toList();
-
-  await stockSvc.addStockFromYields(businessId: businessId, storeId: storeId, yields: yieldRecords);
-  if (sourceStoreId != null) {
-    await stockSvc.subtractStockFromYields(businessId: businessId, storeId: sourceStoreId, yields: yieldRecords);
-  }
 }
 
 Future<void> _handleButcherCancelEntry(Map<String, dynamic> data) async {
@@ -1284,33 +1392,71 @@ Future<void> _handleButcherCancelEntry(Map<String, dynamic> data) async {
   final cancelledBy = _optString(data, 'cancelledBy') ?? '';
 
   final receiptsRef = _firestore.collection('businesses').doc(businessId).collection('butcherReceipts');
-  final doc = await receiptsRef.doc(receiptId).get();
-  if (!doc.exists) return;
-  final detail = doc.data() as Map<String, dynamic>;
+  final snapshot = await receiptsRef.doc(receiptId).get();
+  if (!snapshot.exists) return;
+  final detail = snapshot.data() as Map<String, dynamic>;
   if (detail['status'] == 'cancelled') return;
 
-  final storeId = detail['storeId'] as String;
+  final storeId = detail['storeId'] as String? ?? '';
   final sourceStoreId = detail['sourceStoreId'] as String?;
-  final yields = ((detail['yields'] as List<dynamic>?) ?? []).map((raw) {
-    final m = Map<String, dynamic>.from(raw as Map);
-    return (
-      name: m['name'] as String,
-      weight: ((m['weight'] as num?) ?? 0).toDouble(),
-      percentage: ((m['percentage'] as num?) ?? 0).toDouble(),
-    );
-  }).toList();
+  final yields = _parseYields(detail['yields']);
+  final productIdsBySection =
+      await _resolveTrackedProducts(businessId, yields.map((y) => y.name));
 
-  final stockSvc = ButcherStockService(firestore: _firestore);
-  await stockSvc.subtractStockFromYields(businessId: businessId, storeId: storeId, yields: yields);
-  if (sourceStoreId != null) {
-    await stockSvc.addStockFromYields(businessId: businessId, storeId: sourceStoreId, yields: yields);
-  }
+  // Transaccion atomica: el guard de estado, las restas de stock y el cambio
+  // de status ocurren juntos. Antes la resta iba antes del update de estado y
+  // un crash intermedio duplicaba la resta en el reintento.
+  await _firestore.runTransaction((txn) async {
+    final freshSnap = await txn.get(receiptsRef.doc(receiptId));
+    if (!freshSnap.exists) return;
+    final freshData = freshSnap.data() as Map<String, dynamic>;
+    if (freshData['status'] == 'cancelled') return;
 
-  await receiptsRef.doc(receiptId).update({
-    'status': 'cancelled',
-    'cancelReason': reason,
-    'cancelledBy': cancelledBy,
-    'cancelledAt': FieldValue.serverTimestamp(),
+    final stockRefs = <String, DocumentReference<Map<String, dynamic>>>{};
+    final currentStocks = <String, double>{};
+    void queueRead(_YieldRecord y, String targetStoreId, String key) {
+      final productId = productIdsBySection[y.name];
+      if (productId == null) return;
+      stockRefs[key] = _firestore
+          .collection('businesses').doc(businessId)
+          .collection('products').doc(productId)
+          .collection('stockByStore').doc(targetStoreId);
+    }
+
+    for (final y in yields) {
+      queueRead(y, storeId, '${y.name}@$storeId');
+      if (sourceStoreId != null) queueRead(y, sourceStoreId, '${y.name}@$sourceStoreId');
+    }
+    for (final entry in stockRefs.entries) {
+      final snap = await txn.get(entry.value);
+      currentStocks[entry.key] =
+          (((snap.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
+    }
+
+    void applyDelta(_YieldRecord y, String targetStoreId, int multiplier) {
+      final key = '${y.name}@$targetStoreId';
+      final ref = stockRefs[key];
+      if (ref == null) return;
+      var newStock = (currentStocks[key] ?? 0) + (y.weight * multiplier);
+      if (newStock < 0) newStock = 0;
+      txn.set(ref, {
+        'stockQuantity': newStock,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    for (final y in yields) {
+      // Revertir la entrada: restar en la sucursal destino y devolver al origen.
+      applyDelta(y, storeId, -1);
+      if (sourceStoreId != null) applyDelta(y, sourceStoreId, 1);
+    }
+
+    txn.update(receiptsRef.doc(receiptId), {
+      'status': 'cancelled',
+      'cancelReason': reason,
+      'cancelledBy': cancelledBy,
+      'cancelledAt': FieldValue.serverTimestamp(),
+    });
   });
 }
 
