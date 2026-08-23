@@ -15,12 +15,18 @@ class StockService implements StockRepository {
     required String businessId,
     required String storeId,
   }) {
-    final controller = StreamController<Map<String, ProductStock>>.broadcast();
-
-    final cached = _getCachedStockForStore(businessId, storeId);
-    if (cached != null && cached.isNotEmpty) {
-      controller.add(cached);
-    }
+    // La emision desde cache va en onListen: en un controller.broadcast los
+    // eventos agregados antes de la primera suscripcion se pierden, lo que
+    // dejaba el grid con stock 0 al regresar a la pestana de Venta.
+    late final StreamController<Map<String, ProductStock>> controller;
+    controller = StreamController<Map<String, ProductStock>>.broadcast(
+      onListen: () {
+        final cached = _getCachedStockForStore(businessId, storeId);
+        if (cached != null && cached.isNotEmpty) {
+          controller.add(cached);
+        }
+      },
+    );
 
     final subscriptions = <StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>{};
 

@@ -1076,7 +1076,9 @@ class _WeightQuantityDialog extends StatefulWidget {
 }
 
 class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
-  final _controller = TextEditingController(text: '1');
+  // Los productos por peso/volumen inician en 0: el cajero captura la
+  // cantidad exacta en vez de borrar el 1 precargado.
+  final _controller = TextEditingController(text: '0');
   final _chickenCountCtrl = TextEditingController();
   String? _errorMessage;
 

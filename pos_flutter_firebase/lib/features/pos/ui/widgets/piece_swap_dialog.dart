@@ -200,13 +200,17 @@ class _PieceSwapDialogState extends State<PieceSwapDialog> {
   }
 
   Widget _buildContent(List<Product> products, Map<String, ProductStock> stocks) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           'Por cada pieza define el peso que ENTREGAS al cliente (resta del stock) '
           'y el peso que el cliente DEVUELVE (suma al stock). Pueden ser diferentes.',
-          style: TextStyle(color: Colors.black54, fontSize: 13),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.75),
+            fontSize: 13,
+          ),
         ),
         const SizedBox(height: 12),
         Expanded(
