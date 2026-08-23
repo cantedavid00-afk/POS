@@ -109,23 +109,29 @@ void main() {
       );
     });
 
-    test('throws on empty email', () async {
-      final service = EmployeeService(
-        firestore: FakeFirebaseFirestore(),
-        connectivityService: ConnectivityService(),
+    test('accepts empty email and stores phone/pinVisible (optional)', () async {
+      final db = FakeFirebaseFirestore();
+      final service = EmployeeService(firestore: db, connectivityService: ConnectivityService());
+
+      await service.addEmployee(
+        businessId: businessId,
+        name: 'Test',
+        email: '  ',
+        phone: '5551234567',
+        role: 'cashier',
+        pin: '1234',
+        storeIds: ['s1'],
+        permissions: [],
       );
-      expect(
-        () => service.addEmployee(
-          businessId: businessId,
-          name: 'Test',
-          email: '  ',
-          role: 'cashier',
-          pin: '1234',
-          storeIds: ['s1'],
-          permissions: [],
-        ),
-        throwsA(isA<StateError>()),
-      );
+
+      final employees = await db
+          .collection('businesses').doc(businessId)
+          .collection('employees').get();
+      expect(employees.docs.length, 1);
+      final data = employees.docs.first.data();
+      expect(data['email'], '');
+      expect(data['phone'], '5551234567');
+      expect(data['pinVisible'], '1234');
     });
 
     test('throws on empty storeIds', () async {

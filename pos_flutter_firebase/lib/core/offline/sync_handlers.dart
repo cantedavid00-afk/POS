@@ -734,14 +734,19 @@ Future<void> _handleDeactivateDiscount(Map<String, dynamic> data) async {
 Future<void> _handleAddEmployee(Map<String, dynamic> data) async {
   final businessId = _str(data, 'businessId');
   await _firestore.collection('businesses').doc(businessId).collection('employees').add({
+    'businessId': businessId,
+    'authUid': '',
     'name': _str(data, 'name'),
-    'email': _str(data, 'email'),
+    'email': data.containsKey('email') ? _str(data, 'email') : '',
+    'phone': data.containsKey('phone') ? _str(data, 'phone') : '',
     'role': _str(data, 'role'),
     'pin': _str(data, 'pin'),
+    if (data.containsKey('pinVisible')) 'pinVisible': _str(data, 'pinVisible'),
     'storeIds': data['storeIds'],
     'permissions': data['permissions'],
     'active': true,
     'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
   });
 }
 
@@ -749,11 +754,15 @@ Future<void> _handleUpdateEmployee(Map<String, dynamic> data) async {
   final businessId = _str(data, 'businessId');
   final updates = <String, dynamic>{
     'role': _str(data, 'role'),
+    if (data.containsKey('phone')) 'phone': _str(data, 'phone'),
     'storeIds': data['storeIds'],
     'permissions': data['permissions'],
     'active': _bool(data, 'active'),
   };
-  if (data.containsKey('pin')) updates['pin'] = _str(data, 'pin');
+  if (data.containsKey('pin')) {
+    updates['pin'] = _str(data, 'pin');
+    if (data.containsKey('pinVisible')) updates['pinVisible'] = _str(data, 'pinVisible');
+  }
   await _firestore.collection('businesses').doc(businessId).collection('employees').doc(_str(data, 'employeeId')).update(updates);
 }
 

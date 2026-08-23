@@ -107,6 +107,8 @@ class BackupService implements BackupRepository {
             storeIds: _strings(m['storeIds']),
             permissions: _strings(m['permissions']),
             pin: m['pin'] as String? ?? '',
+            phone: m['phone'] as String? ?? '',
+            pinVisible: m['pinVisible'] as String? ?? '',
             active: m['active'] as bool? ?? true,
           ))
       .toList();
@@ -273,7 +275,7 @@ class BackupService implements BackupRepository {
           'timezone': business.timezone, 'active': business.active,
         } : null,
         'stores': stores?.map((s) => {'id': s.id, 'name': s.name, 'address': s.address, 'phone': s.phone, 'active': s.active}).toList() ?? const [],
-        'employees': employees?.map((e) => {'id': e.id, 'businessId': e.businessId, 'authUid': e.authUid, 'name': e.name, 'email': e.email, 'role': e.role, 'storeIds': e.storeIds, 'permissions': e.permissions, 'pin': e.pin, 'active': e.active}).toList() ?? const [],
+        'employees': employees?.map((e) => {'id': e.id, 'businessId': e.businessId, 'authUid': e.authUid, 'name': e.name, 'email': e.email, 'phone': e.phone, 'role': e.role, 'storeIds': e.storeIds, 'permissions': e.permissions, 'pin': e.pin, 'pinVisible': e.pinVisible, 'active': e.active}).toList() ?? const [],
         'products': products?.map((p) => {'id': p.id, 'name': p.name, 'categoryId': p.categoryId, 'categoryName': p.categoryName, 'sellBy': p.sellBy, 'price': p.price, 'cost': p.cost, 'ref': p.ref, 'trackStock': p.trackStock, 'stockQuantity': p.stockQuantity, 'lowStockAlertQuantity': p.lowStockAlertQuantity, 'presentationType': p.presentationType, 'presentationShape': p.presentationShape, 'presentationColor': p.presentationColor, 'imageUrl': p.imageUrl, 'localImagePath': p.localImagePath, 'active': p.active}).toList() ?? const [],
         'productStock': productStock?.map((s) => {'productId': s.productId, 'storeId': s.storeId, 'stockQuantity': s.stockQuantity, 'lowStockAlertQuantity': s.lowStockAlertQuantity}).toList() ?? const [],
         'categories': categories?.map((c) => {'id': c.id, 'name': c.name, 'color': c.color, 'active': c.active}).toList() ?? const [],

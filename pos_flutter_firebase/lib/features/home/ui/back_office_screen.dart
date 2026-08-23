@@ -846,7 +846,14 @@ class _EmployeesTab extends StatelessWidget {
               return ListTile(
                 leading: Icon(employee.active ? Icons.person : Icons.person_off),
                 title: Text(employee.name),
-                subtitle: Text('${employee.email} · ${employee.role}'),
+                subtitle: Text(
+                  [
+                    if (employee.email.isNotEmpty) employee.email,
+                    if (employee.phone.isNotEmpty) employee.phone,
+                    employee.role,
+                    if (employee.pinVisible.isNotEmpty) 'PIN: ${employee.pinVisible}',
+                  ].join(' · '),
+                ),
                 trailing: employee.isOwner ? const Text('Dueno') : null,
                 onTap: () => _showEmployeeDialog(context, employee: employee),
               );
@@ -875,25 +882,28 @@ class _EmployeesTab extends StatelessWidget {
           businessId: businessId,
           name: result.name,
           email: result.email,
+          phone: result.phone,
           role: result.role,
           pin: result.pin,
           storeIds: result.storeIds,
           permissions: result.permissions,
         );
       } else {
-        final pin = result.pin.isNotEmpty ? result.pin : employee.pin;
         await context.read<EmployeeRepository>().updateEmployee(
           businessId: businessId,
           employee: employee,
           role: result.role,
-          pin: pin,
+
+          /// null = no cambiar el PIN actual (evita re-hashear el hash).
+          pin: result.pin.isEmpty ? null : result.pin,
+          phone: result.phone,
           storeIds: result.storeIds,
           permissions: result.permissions,
           active: result.active,
         );
       }
       if (!context.mounted) return;
-      context.read<AppSessionNotifier>().refreshSession();
+      await context.read<AppSessionNotifier>().refreshSession();
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -1113,6 +1123,7 @@ class _EmployeeDialogResult {
   const _EmployeeDialogResult({
     required this.name,
     required this.email,
+    required this.phone,
     required this.role,
     required this.pin,
     required this.storeIds,
@@ -1123,6 +1134,7 @@ class _EmployeeDialogResult {
 
   final String name;
   final String email;
+  final String phone;
   final String role;
   final String pin;
   final List<String> storeIds;
@@ -1154,6 +1166,7 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _pinController = TextEditingController();
   late String _role;
   late bool _active;
@@ -1167,6 +1180,7 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
     final employee = widget.employee;
     _nameController.text = employee?.name ?? '';
     _emailController.text = employee?.email ?? '';
+    _phoneController.text = employee?.phone ?? '';
     _role = employee?.role ?? 'cashier';
     _active = employee?.active ?? true;
     _storeIds = {...(employee?.storeIds ?? widget.stores.map((store) => store.id))};
@@ -1179,6 +1193,7 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _pinController.dispose();
     super.dispose();
   }
@@ -1200,7 +1215,14 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Correo', border: OutlineInputBorder()),
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Correo (opcional)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Telefono (opcional)', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -1209,7 +1231,11 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
               obscureText: true,
               decoration: InputDecoration(
                 labelText: 'PIN',
-                helperText: isEditing ? 'Dejar vacio para no cambiar' : 'Minimo 4 digitos',
+                helperText: widget.employee != null && widget.employee!.pinVisible.isNotEmpty
+                    ? 'PIN actual: ${widget.employee!.pinVisible}. Dejar vacio para no cambiar'
+                    : isEditing
+                        ? 'Dejar vacio para no cambiar'
+                        : 'Minimo 4 digitos',
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -1299,6 +1325,7 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
               Navigator.pop(context, _EmployeeDialogResult(
                 name: widget.employee!.name,
                 email: widget.employee!.email,
+                phone: widget.employee!.phone,
                 role: widget.employee!.role,
                 pin: '',
                 storeIds: widget.employee!.storeIds,
@@ -1317,11 +1344,12 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
   void _submit() {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
     final pin = _pinController.text.trim();
     final isEditing = widget.employee != null;
 
-    if (name.isEmpty || email.isEmpty || _storeIds.isEmpty) {
-      setState(() => _errorMessage = 'Completa nombre, correo y sucursal');
+    if (name.isEmpty || _storeIds.isEmpty) {
+      setState(() => _errorMessage = 'Completa nombre y sucursal');
       return;
     }
     if (!isEditing && pin.length < 4) {
@@ -1334,6 +1362,7 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
       _EmployeeDialogResult(
         name: name,
         email: email,
+        phone: phone,
         role: _role,
         pin: pin,
         storeIds: _storeIds.toList(),

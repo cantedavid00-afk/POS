@@ -37,7 +37,8 @@ class EmployeeService implements EmployeeRepository {
   Future<void> addEmployee({
     required String businessId,
     required String name,
-    required String email,
+    String email = '',
+    String phone = '',
     required String role,
     required String pin,
     required List<String> storeIds,
@@ -45,8 +46,9 @@ class EmployeeService implements EmployeeRepository {
   }) async {
     final trimmedName = name.trim();
     final trimmedEmail = email.trim().toLowerCase();
-    if (trimmedName.isEmpty || trimmedEmail.isEmpty) {
-      throw StateError('Nombre y correo son obligatorios');
+    final trimmedPhone = phone.trim();
+    if (trimmedName.isEmpty) {
+      throw StateError('El nombre es obligatorio');
     }
     if (storeIds.isEmpty) {
       throw StateError('Selecciona al menos una sucursal');
@@ -61,10 +63,12 @@ class EmployeeService implements EmployeeRepository {
         'authUid': '',
         'name': trimmedName,
         'email': trimmedEmail,
+        'phone': trimmedPhone,
         'role': role,
         'storeIds': storeIds,
         'permissions': permissions,
         'pin': _hashedPin(pin),
+        'pinVisible': pin.trim(),
         'active': true,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -74,8 +78,10 @@ class EmployeeService implements EmployeeRepository {
         'businessId': businessId,
         'name': trimmedName,
         'email': trimmedEmail,
+        'phone': trimmedPhone,
         'role': role,
         'pin': _hashedPin(pin),
+        'pinVisible': pin.trim(),
         'storeIds': storeIds,
         'permissions': permissions,
       });
@@ -86,7 +92,8 @@ class EmployeeService implements EmployeeRepository {
     required String businessId,
     required Employee employee,
     required String role,
-    required String pin,
+    String? pin,
+    String phone = '',
     required List<String> storeIds,
     required List<String> permissions,
     required bool active,
@@ -94,10 +101,12 @@ class EmployeeService implements EmployeeRepository {
     if (storeIds.isEmpty) {
       throw StateError('Selecciona al menos una sucursal');
     }
-    final finalPin = pin.trim();
-    if (finalPin.isNotEmpty && finalPin.length < 4) {
+    final newPin = pin?.trim() ?? '';
+    final changesPin = newPin.isNotEmpty;
+    if (changesPin && newPin.length < 4) {
       throw StateError('El PIN debe tener al menos 4 digitos');
     }
+    final trimmedPhone = phone.trim();
 
     if (await _connectivityService.hasConnection()) {
       await _db
@@ -107,9 +116,11 @@ class EmployeeService implements EmployeeRepository {
           .doc(employee.id)
           .update({
         'role': role,
+        'phone': trimmedPhone,
         'storeIds': storeIds,
         'permissions': permissions,
-        if (finalPin.isNotEmpty) 'pin': _hashedPin(pin),
+        if (changesPin) 'pin': _hashedPin(newPin),
+        if (changesPin) 'pinVisible': newPin,
         'active': active,
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -118,7 +129,9 @@ class EmployeeService implements EmployeeRepository {
         'businessId': businessId,
         'employeeId': employee.id,
         'role': role,
-        if (finalPin.isNotEmpty) 'pin': _hashedPin(pin),
+        'phone': trimmedPhone,
+        if (changesPin) 'pin': _hashedPin(newPin),
+        if (changesPin) 'pinVisible': newPin,
         'storeIds': storeIds,
         'permissions': permissions,
         'active': active,

@@ -14,6 +14,8 @@ class Employee {
     required this.storeIds,
     required this.permissions,
     required this.pin,
+    this.phone = '',
+    this.pinVisible = '',
     required this.active,
   });
 
@@ -26,6 +28,14 @@ class Employee {
   final List<String> storeIds;
   final List<String> permissions;
   final String pin;
+
+  /// Telefono opcional del empleado.
+  final String phone;
+
+  /// PIN en texto plano para que el administrador pueda consultarlo.
+  /// Es solo informativo; la validacion siempre usa [pin] (hash).
+  final String pinVisible;
+
   final bool active;
 
   bool get isOwner => role == 'owner';
@@ -116,6 +126,8 @@ class Employee {
       storeIds: List<String>.from(data['storeIds'] as List? ?? const []),
       permissions: List<String>.from(data['permissions'] as List? ?? const []),
       pin: data['pin'] as String? ?? '',
+      phone: data['phone'] as String? ?? '',
+      pinVisible: data['pinVisible'] as String? ?? '',
       active: data['active'] as bool? ?? true,
     );
   }
