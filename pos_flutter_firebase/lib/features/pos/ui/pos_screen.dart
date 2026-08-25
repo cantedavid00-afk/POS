@@ -41,6 +41,10 @@ class _PosScreenState extends State<PosScreen> {
   String _searchQuery = '';
   String? _selectedCategoryId;
 
+  /// Modo de captura para productos por peso/volumen. Estático para que la
+  /// preferencia sobreviva al navegar entre pestanas dentro de la sesion.
+  static bool _sellByPriceMode = false;
+
   late final SaleRepository _saleService;
   late final ShiftRepository _shiftService;
   late final OpenTicketRepository _openTicketService;
@@ -155,6 +159,7 @@ class _PosScreenState extends State<PosScreen> {
       builder: (context) => _WeightQuantityDialog(
         product: product,
         askChickenCount: product.id == _wholeProductId,
+        priceMode: _sellByPriceMode,
       ),
     );
   }
@@ -583,6 +588,14 @@ class _PosScreenState extends State<PosScreen> {
                 ),
               ),
               const SizedBox(width: 8),
+              IconButton(
+                tooltip: _sellByPriceMode
+                    ? 'Modo precio: capturas el total y se calculan los kg (tocar para volver a modo peso)'
+                    : 'Modo peso: capturas los kg (tocar para capturar el precio total)',
+                isSelected: _sellByPriceMode,
+                icon: Icon(_sellByPriceMode ? Icons.attach_money : Icons.scale),
+                onPressed: () => setState(() => _sellByPriceMode = !_sellByPriceMode),
+              ),
                PopupMenuButton<String>(
                 tooltip: 'Mas opciones',
                 onSelected: (value) {
@@ -1066,10 +1079,14 @@ class _WeightQuantityDialog extends StatefulWidget {
   const _WeightQuantityDialog({
     required this.product,
     this.askChickenCount = false,
+    this.priceMode = false,
   });
 
   final Product product;
   final bool askChickenCount;
+
+  /// true = capturar el precio total y calcular el peso (price / precio unitario).
+  final bool priceMode;
 
   @override
   State<_WeightQuantityDialog> createState() => _WeightQuantityDialogState();
@@ -1081,6 +1098,36 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
   final _controller = TextEditingController(text: '0');
   final _chickenCountCtrl = TextEditingController();
   String? _errorMessage;
+  double? _previewValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _updatePreview(_controller.text);
+  }
+
+  void _updatePreview(String text) {
+    final value = double.tryParse(text.trim().replaceAll(',', '.'));
+    if (!widget.priceMode) {
+      _previewValue = null;
+      return;
+    }
+    if (value == null || value <= 0 || widget.product.price <= 0) {
+      setState(() {
+        _previewValue = null;
+        _errorMessage = null;
+      });
+      return;
+    }
+    setState(() {
+      _previewValue = value / widget.product.price;
+      _errorMessage = null;
+    });
+  }
+
+  String _formatKg(double value) {
+    return value.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+  }
 
   @override
   void dispose() {
@@ -1102,11 +1149,19 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
               controller: _controller,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: _updatePreview,
               decoration: InputDecoration(
-                labelText: 'Peso/volumen',
-                helperText: widget.product.trackStock
-                    ? 'Disponible: ${_formatQuantity(widget.product.stockQuantity)}'
-                    : 'Ejemplo: 0.250, 1.5, 2',
+                labelText: widget.priceMode ? 'Precio total (\$)' : 'Peso/volumen',
+                suffixText: widget.priceMode
+                    ? (_previewValue != null ? '= ${_formatKg(_previewValue!)} kg' : null)
+                    : null,
+                helperText: widget.priceMode
+                    ? (widget.product.trackStock
+                        ? 'Precio por kg: \$${widget.product.price.toStringAsFixed(2)} · Disponible: ${_formatKg(widget.product.stockQuantity)} kg'
+                        : 'Precio por kg: \$${widget.product.price.toStringAsFixed(2)}')
+                    : widget.product.trackStock
+                        ? 'Disponible: ${_formatKg(widget.product.stockQuantity)}'
+                        : 'Ejemplo: 0.250, 1.5, 2',
                 errorText: _errorMessage,
                 border: const OutlineInputBorder(),
               ),
@@ -1136,11 +1191,27 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
   }
 
   void _submit() {
-    final value = double.tryParse(_controller.text.trim().replaceAll(',', '.'));
-    if (value == null || value <= 0) {
-      setState(() => _errorMessage = 'Ingresa una cantidad mayor a cero');
+    final input = double.tryParse(_controller.text.trim().replaceAll(',', '.'));
+    if (input == null || input <= 0) {
+      setState(() => _errorMessage = widget.priceMode
+          ? 'Ingresa un precio mayor a cero'
+          : 'Ingresa una cantidad mayor a cero');
       return;
     }
+
+    // En modo precio el cajero captura el total y se deriva el peso:
+    // peso = precio capturado / precio unitario por kg.
+    final double value;
+    if (widget.priceMode) {
+      if (widget.product.price <= 0) {
+        setState(() => _errorMessage = 'El producto no tiene precio por kg configurado');
+        return;
+      }
+      value = input / widget.product.price;
+    } else {
+      value = input;
+    }
+
     if (widget.product.trackStock && value > widget.product.stockQuantity + 0.000001) {
       setState(() => _errorMessage = 'La cantidad supera el stock disponible');
       return;
@@ -1161,11 +1232,6 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
     }
 
     Navigator.pop(context, (weight: value, chickenCount: chickenCount));
-  }
-
-  String _formatQuantity(double value) {
-    if (value % 1 == 0) return value.toStringAsFixed(0);
-    return value.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
   }
 }
 
