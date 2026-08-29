@@ -68,7 +68,10 @@ class _ReceiveTransferScreenState extends State<ReceiveTransferScreen> {
       final ctrl = TextEditingController(
         text: item.sentQuantity.toStringAsFixed(2),
       );
-      return _ConfirmItem(item: item, ctrl: ctrl);
+      final chickenCtrl = TextEditingController(
+        text: item.sentChickenCount?.toString() ?? '',
+      );
+      return _ConfirmItem(item: item, ctrl: ctrl, chickenCtrl: chickenCtrl);
     }).toList();
 
     final confirmed = await showDialog<bool>(
@@ -84,22 +87,48 @@ class _ReceiveTransferScreenState extends State<ReceiveTransferScreen> {
                 const SizedBox(height: 12),
                 ...items.map((e) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(e.item.productName),
-                          ),
-                          SizedBox(
-                            width: 100,
-                            child: TextField(
-                              controller: e.ctrl,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                border: OutlineInputBorder(),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(e.item.productName),
                               ),
-                            ),
+                              SizedBox(
+                                width: 100,
+                                child: TextField(
+                                  controller: e.ctrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    isDense: true,
+                                    labelText: 'Kg',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                          if (e.item.sentChickenCount != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Text('Pollos: '),
+                                SizedBox(
+                                  width: 80,
+                                  child: TextField(
+                                    controller: e.chickenCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      labelText: 'Pollos',
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     )),
@@ -125,11 +154,16 @@ class _ReceiveTransferScreenState extends State<ReceiveTransferScreen> {
     final updatedItems = items.map((e) {
       final qty =
           double.tryParse(e.ctrl.text.replaceAll(',', '.')) ?? e.item.sentQuantity;
+      final chickens = e.item.sentChickenCount != null
+          ? int.tryParse(e.chickenCtrl.text) ?? e.item.sentChickenCount
+          : null;
       return TransferItem(
         productId: e.item.productId,
         productName: e.item.productName,
         sentQuantity: e.item.sentQuantity,
         confirmedQuantity: qty,
+        sentChickenCount: e.item.sentChickenCount,
+        confirmedChickenCount: chickens,
       );
     }).toList();
 
@@ -182,7 +216,8 @@ class _TransferCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text('Artículos: ${transfer.items.length}'),
             ...transfer.items.map((item) => Text(
-                  '  • ${item.productName}: ${item.sentQuantity.toStringAsFixed(2)}',
+                  '  • ${item.productName}: ${item.sentQuantity.toStringAsFixed(2)} kg'
+                  '${item.sentChickenCount != null ? ' (${item.sentChickenCount} pollos)' : ''}',
                 )),
             const SizedBox(height: 8),
             if (transfer.isSent)
@@ -205,6 +240,7 @@ class _TransferCard extends StatelessWidget {
 class _ConfirmItem {
   final TransferItem item;
   final TextEditingController ctrl;
+  final TextEditingController chickenCtrl;
 
-  _ConfirmItem({required this.item, required this.ctrl});
+  _ConfirmItem({required this.item, required this.ctrl, required this.chickenCtrl});
 }

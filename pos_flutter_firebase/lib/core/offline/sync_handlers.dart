@@ -1159,6 +1159,8 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
       productName: (m['productName'] as String?) ?? '',
       sentQuantity: ((m['sentQuantity'] as num?) ?? 0).toDouble(),
       confirmedQuantity: confirmed is num ? confirmed.toDouble() : null,
+      sentChickenCount: (m['sentChickenCount'] as num?)?.toInt(),
+      confirmedChickenCount: (m['confirmedChickenCount'] as num?)?.toInt(),
     );
   }).toList();
   final filteredItems =
@@ -1199,33 +1201,55 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
         .collection('stockByStore').doc(storeId);
 
     final stockSnapshots = <String, double>{};
+    final chickenSnapshots = <String, int>{};
     for (final item in filteredItems) {
       final fromDoc = await txn.get(itemStockRef(item.productId, fromStoreId));
       stockSnapshots['from_${item.productId}'] =
           (((fromDoc.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
+      chickenSnapshots['from_${item.productId}'] =
+          (((fromDoc.data() as Map<String, dynamic>?)?['chickenCount'] ?? 0) as num).toInt();
       final toDoc = await txn.get(itemStockRef(item.productId, toStoreId));
       stockSnapshots['to_${item.productId}'] =
           (((toDoc.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
+      chickenSnapshots['to_${item.productId}'] =
+          (((toDoc.data() as Map<String, dynamic>?)?['chickenCount'] ?? 0) as num).toInt();
     }
 
     for (final item in filteredItems) {
       final qty = item.confirmedQuantity!;
+      final sentChickens = item.sentChickenCount ?? 0;
+      final confirmedChickens = item.confirmedChickenCount;
+
       final fromQty = stockSnapshots['from_${item.productId}'] ?? 0;
       final newFromQty = (fromQty - qty).clamp(0.0, double.infinity);
-      txn.set(itemStockRef(item.productId, fromStoreId), {
+      final fromChickenCount = chickenSnapshots['from_${item.productId}'] ?? 0;
+      final newFromChickenCount = (fromChickenCount - sentChickens).clamp(0, 999999);
+      final fromUpdate = <String, dynamic>{
         'stockQuantity': newFromQty,
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+      if (sentChickens > 0) {
+        fromUpdate['chickenCount'] = newFromChickenCount;
+      }
+      txn.set(itemStockRef(item.productId, fromStoreId), fromUpdate, SetOptions(merge: true));
 
       final toQty = stockSnapshots['to_${item.productId}'] ?? 0;
       final newToQty = toQty + qty;
-      txn.set(itemStockRef(item.productId, toStoreId), {
+      final toChickenCount = chickenSnapshots['to_${item.productId}'] ?? 0;
+      final newToChickenCount = confirmedChickens != null
+          ? toChickenCount + confirmedChickens
+          : toChickenCount;
+      final toUpdate = <String, dynamic>{
         'businessId': businessId,
         'storeId': toStoreId,
         'productId': item.productId,
         'stockQuantity': newToQty,
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+      if (confirmedChickens != null) {
+        toUpdate['chickenCount'] = newToChickenCount;
+      }
+      txn.set(itemStockRef(item.productId, toStoreId), toUpdate, SetOptions(merge: true));
 
       txn.set(movementsRef.doc(), {
         'businessId': businessId,

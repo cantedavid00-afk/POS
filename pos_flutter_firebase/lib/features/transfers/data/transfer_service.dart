@@ -66,6 +66,7 @@ class TransferService implements TransferRepository {
           businessId: businessId,
           productId: item.productId,
           delta: qty,
+          chickenDelta: item.confirmedChickenCount,
         );
       }
       return;
@@ -103,6 +104,7 @@ class TransferService implements TransferRepository {
       final fromEmployeeId = transferData['fromEmployeeId'] as String? ?? '';
 
       final stockSnapshots = <String, double>{};
+      final chickenSnapshots = <String, int>{};
       for (final item in filteredItems) {
         final fromStockRef = _db
             .collection('businesses')
@@ -115,6 +117,8 @@ class TransferService implements TransferRepository {
         final fromData = fromDoc.data() as Map<String, dynamic>?;
         stockSnapshots['from_${item.productId}'] =
             (fromData?['stockQuantity'] as num?)?.toDouble() ?? 0;
+        chickenSnapshots['from_${item.productId}'] =
+            (fromData?['chickenCount'] as num?)?.toInt() ?? 0;
 
         final toStockRef = _db
             .collection('businesses')
@@ -127,10 +131,14 @@ class TransferService implements TransferRepository {
         final toData = toDoc.data() as Map<String, dynamic>?;
         stockSnapshots['to_${item.productId}'] =
             (toData?['stockQuantity'] as num?)?.toDouble() ?? 0;
+        chickenSnapshots['to_${item.productId}'] =
+            (toData?['chickenCount'] as num?)?.toInt() ?? 0;
       }
 
       for (final item in filteredItems) {
         final qty = item.confirmedQuantity!;
+        final sentChickens = item.sentChickenCount ?? 0;
+        final confirmedChickens = item.confirmedChickenCount;
 
         final fromStockRef = _db
             .collection('businesses')
@@ -142,10 +150,16 @@ class TransferService implements TransferRepository {
 
         final fromQty = stockSnapshots['from_${item.productId}'] ?? 0;
         final newFromQty = (fromQty - qty).clamp(0.0, double.infinity);
-        transaction.set(fromStockRef, {
+        final fromChickenCount = chickenSnapshots['from_${item.productId}'] ?? 0;
+        final newFromChickenCount = (fromChickenCount - sentChickens).clamp(0, 999999);
+        final fromUpdate = <String, dynamic>{
           'stockQuantity': newFromQty,
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+        if (sentChickens > 0) {
+          fromUpdate['chickenCount'] = newFromChickenCount;
+        }
+        transaction.set(fromStockRef, fromUpdate, SetOptions(merge: true));
 
         final toStockRef = _db
             .collection('businesses')
@@ -157,13 +171,21 @@ class TransferService implements TransferRepository {
 
         final toQty = stockSnapshots['to_${item.productId}'] ?? 0;
         final newToQty = toQty + qty;
-        transaction.set(toStockRef, {
+        final toChickenCount = chickenSnapshots['to_${item.productId}'] ?? 0;
+        final newToChickenCount = confirmedChickens != null
+            ? toChickenCount + confirmedChickens
+            : toChickenCount;
+        final toUpdate = <String, dynamic>{
           'businessId': businessId,
           'storeId': toStoreId,
           'productId': item.productId,
           'stockQuantity': newToQty,
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+        if (confirmedChickens != null) {
+          toUpdate['chickenCount'] = newToChickenCount;
+        }
+        transaction.set(toStockRef, toUpdate, SetOptions(merge: true));
 
         transaction.set(movementsRef.doc(), {
           'businessId': businessId,

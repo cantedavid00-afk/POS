@@ -8,6 +8,7 @@ import '../../../shared/models/store.dart';
 import '../../../shared/providers/app_session_notifier.dart';
 import '../../products/domain/product_repository.dart';
 import '../../inventory/domain/stock_repository.dart';
+import '../../poultry/domain/poultry_repository.dart';
 import '../domain/transfer_repository.dart';
 import '../domain/transfer.dart';
 import '../domain/transfer_item.dart';
@@ -35,6 +36,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
   final _items = <_TransferItemEntry>[];
   bool _loading = true;
   bool _saving = false;
+  String? _wholeProductId;
   late Stream<Map<String, ProductStock>> _stockStream;
 
   @override
@@ -48,6 +50,14 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
   }
 
   Future<void> _loadData() async {
+    try {
+      final poultryRepo = context.read<PoultryRepository>();
+      final config = await poultryRepo.getConfig(widget.businessId);
+      if (!mounted) return;
+      _wholeProductId = config?.wholeProductId;
+    } catch (_) {
+      // Silenciar: la funcionalidad de pollos enteros es opcional
+    }
     final session = context.read<AppSessionNotifier>().session;
     if (session != null && mounted) {
       setState(() => _loading = false);
@@ -60,6 +70,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
         product: product,
         stock: stock,
         quantityCtrl: TextEditingController(),
+        chickenCountCtrl: TextEditingController(),
       ));
     });
   }
@@ -67,6 +78,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
   void _removeItem(int index) {
     setState(() {
       _items[index].quantityCtrl.dispose();
+      _items[index].chickenCountCtrl.dispose();
       _items.removeAt(index);
     });
   }
@@ -93,10 +105,30 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
         );
         return;
       }
+
+      int? chickenCount;
+      if (e.product.id == _wholeProductId) {
+        chickenCount = int.tryParse(e.chickenCountCtrl.text);
+        if (chickenCount == null || chickenCount <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Ingresa la cantidad de pollos enteros para ${e.product.name}')),
+          );
+          return;
+        }
+        final availableChickens = e.stock.chickenCount ?? 0;
+        if (chickenCount > availableChickens) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Pollos insuficientes de ${e.product.name}: disponibles $availableChickens')),
+          );
+          return;
+        }
+      }
+
       items.add(TransferItem(
         productId: e.product.id,
         productName: e.product.name,
         sentQuantity: qty,
+        sentChickenCount: chickenCount,
       ));
     }
 
@@ -140,6 +172,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
   void dispose() {
     for (final e in _items) {
       e.quantityCtrl.dispose();
+      e.chickenCountCtrl.dispose();
     }
     super.dispose();
   }
@@ -209,37 +242,71 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
             ..._items.asMap().entries.map((entry) {
               final idx = entry.key;
               final e = entry.value;
+              final isWholeChicken = e.product.id == _wholeProductId;
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(e.product.name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Text('Stock: ${e.stock.stockQuantity.toStringAsFixed(2)} kg'),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            width: 100,
+                            child: TextField(
+                              controller: e.quantityCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                labelText: 'Kg',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _removeItem(idx),
+                          ),
+                        ],
+                      ),
+                      if (isWholeChicken) ...[
+                        const SizedBox(height: 8),
+                        Row(
                           children: [
-                            Text(e.product.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold)),
-                            Text('Stock: ${e.stock.stockQuantity.toStringAsFixed(2)}'),
+                            Expanded(
+                              child: Text(
+                                'Pollos: ${e.stock.chickenCount ?? 0} disponibles',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).colorScheme.secondary,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 100,
+                              child: TextField(
+                                controller: e.chickenCountCtrl,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Pollos',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      SizedBox(
-                        width: 100,
-                        child: TextField(
-                          controller: e.quantityCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            labelText: 'Cant.',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _removeItem(idx),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -270,10 +337,12 @@ class _TransferItemEntry {
   final Product product;
   final ProductStock stock;
   final TextEditingController quantityCtrl;
+  final TextEditingController chickenCountCtrl;
 
   _TransferItemEntry({
     required this.product,
     required this.stock,
     required this.quantityCtrl,
+    required this.chickenCountCtrl,
   });
 }
