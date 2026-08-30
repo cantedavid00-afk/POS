@@ -29,6 +29,16 @@ class TransferService implements TransferRepository {
         'businessId': businessId,
         ...transfer.toMap(),
       });
+      // Delta local: descontar del stock de la sucursal origen.
+      for (final item in transfer.items) {
+        final chickenDelta = item.sentChickenCount != null ? -item.sentChickenCount! : null;
+        await _stockService?.applyLocalStockDelta(
+          businessId: businessId,
+          productId: item.productId,
+          delta: -item.sentQuantity,
+          chickenDelta: chickenDelta,
+        );
+      }
       return;
     }
 
@@ -38,9 +48,62 @@ class TransferService implements TransferRepository {
         .collection('transfers')
         .doc();
 
-    await ref.set({
-      ...transfer.toMap(),
-      'createdAt': FieldValue.serverTimestamp(),
+    // Descontar stock de la sucursal origen dentro de una transacción.
+    final movementsRef = _db
+        .collection('businesses')
+        .doc(businessId)
+        .collection('inventoryMovements');
+
+    await _db.runTransaction((transaction) async {
+      // Leer stock actual de la sucursal origen para cada producto.
+      for (final item in transfer.items) {
+        final stockRef = _db
+            .collection('businesses')
+            .doc(businessId)
+            .collection('products')
+            .doc(item.productId)
+            .collection('stockByStore')
+            .doc(transfer.fromStoreId);
+        final stockDoc = await transaction.get(stockRef);
+        final stockData = stockDoc.data() as Map<String, dynamic>?;
+        final currentQty = (stockData?['stockQuantity'] as num?)?.toDouble() ?? 0;
+        final currentChickens = (stockData?['chickenCount'] as num?)?.toInt() ?? 0;
+        final newQty = (currentQty - item.sentQuantity).clamp(0.0, double.infinity);
+        final sentChickens = item.sentChickenCount ?? 0;
+        final newChickenCount = (currentChickens - sentChickens).clamp(0, 999999);
+
+        final update = <String, dynamic>{
+          'stockQuantity': newQty,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (sentChickens > 0) {
+          update['chickenCount'] = newChickenCount;
+        }
+        transaction.set(stockRef, update, SetOptions(merge: true));
+
+        transaction.set(movementsRef.doc(), {
+          'businessId': businessId,
+          'storeId': transfer.fromStoreId,
+          'fromStoreId': transfer.fromStoreId,
+          'toStoreId': transfer.toStoreId,
+          'fromStoreName': transfer.fromStoreName ?? '',
+          'toStoreName': transfer.toStoreName ?? '',
+          'productId': item.productId,
+          'productName': item.productName,
+          'type': 'transfer',
+          'previousQuantity': currentQty,
+          'newQuantity': newQty,
+          'difference': newQty - currentQty,
+          'reason': 'Traspaso enviado',
+          'employeeId': transfer.fromEmployeeId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      transaction.set(ref, {
+        ...transfer.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 
@@ -101,25 +164,10 @@ class TransferService implements TransferRepository {
       final toStoreId = transferData['toStoreId'] as String;
       final fromStoreName = transferData['fromStoreName'] as String? ?? '';
       final toStoreName = transferData['toStoreName'] as String? ?? '';
-      final fromEmployeeId = transferData['fromEmployeeId'] as String? ?? '';
 
       final stockSnapshots = <String, double>{};
       final chickenSnapshots = <String, int>{};
       for (final item in filteredItems) {
-        final fromStockRef = _db
-            .collection('businesses')
-            .doc(businessId)
-            .collection('products')
-            .doc(item.productId)
-            .collection('stockByStore')
-            .doc(fromStoreId);
-        final fromDoc = await transaction.get(fromStockRef);
-        final fromData = fromDoc.data() as Map<String, dynamic>?;
-        stockSnapshots['from_${item.productId}'] =
-            (fromData?['stockQuantity'] as num?)?.toDouble() ?? 0;
-        chickenSnapshots['from_${item.productId}'] =
-            (fromData?['chickenCount'] as num?)?.toInt() ?? 0;
-
         final toStockRef = _db
             .collection('businesses')
             .doc(businessId)
@@ -137,29 +185,7 @@ class TransferService implements TransferRepository {
 
       for (final item in filteredItems) {
         final qty = item.confirmedQuantity!;
-        final sentChickens = item.sentChickenCount ?? 0;
         final confirmedChickens = item.confirmedChickenCount;
-
-        final fromStockRef = _db
-            .collection('businesses')
-            .doc(businessId)
-            .collection('products')
-            .doc(item.productId)
-            .collection('stockByStore')
-            .doc(fromStoreId);
-
-        final fromQty = stockSnapshots['from_${item.productId}'] ?? 0;
-        final newFromQty = (fromQty - qty).clamp(0.0, double.infinity);
-        final fromChickenCount = chickenSnapshots['from_${item.productId}'] ?? 0;
-        final newFromChickenCount = (fromChickenCount - sentChickens).clamp(0, 999999);
-        final fromUpdate = <String, dynamic>{
-          'stockQuantity': newFromQty,
-          'updatedAt': FieldValue.serverTimestamp(),
-        };
-        if (sentChickens > 0) {
-          fromUpdate['chickenCount'] = newFromChickenCount;
-        }
-        transaction.set(fromStockRef, fromUpdate, SetOptions(merge: true));
 
         final toStockRef = _db
             .collection('businesses')
@@ -186,24 +212,6 @@ class TransferService implements TransferRepository {
           toUpdate['chickenCount'] = newToChickenCount;
         }
         transaction.set(toStockRef, toUpdate, SetOptions(merge: true));
-
-        transaction.set(movementsRef.doc(), {
-          'businessId': businessId,
-          'storeId': fromStoreId,
-          'fromStoreId': fromStoreId,
-          'toStoreId': toStoreId,
-          'fromStoreName': fromStoreName,
-          'toStoreName': toStoreName,
-          'productId': item.productId,
-          'productName': item.productName,
-          'type': 'transfer',
-          'previousQuantity': fromQty,
-          'newQuantity': newFromQty,
-          'difference': newFromQty - fromQty,
-          'reason': 'Traspaso enviado',
-          'employeeId': fromEmployeeId,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
 
         transaction.set(movementsRef.doc(), {
           'businessId': businessId,

@@ -1133,7 +1133,70 @@ Future<void> _handleSendTransfer(Map<String, dynamic> data) async {
     final existing = await ref.get();
     if (existing.exists) return;
   }
-  await ref.set(transferMap);
+
+  // Descontar stock de la sucursal origen.
+  final fromStoreId = transferMap['fromStoreId'] as String? ?? '';
+  final toStoreId = transferMap['toStoreId'] as String? ?? '';
+  final fromStoreName = transferMap['fromStoreName'] as String? ?? '';
+  final toStoreName = transferMap['toStoreName'] as String? ?? '';
+  final fromEmployeeId = transferMap['fromEmployeeId'] as String? ?? '';
+  final itemsRaw = transferMap['items'] as List<dynamic>? ?? [];
+
+  if (fromStoreId.isNotEmpty && itemsRaw.isNotEmpty) {
+    final movementsRef = _firestore.collection('businesses').doc(businessId).collection('inventoryMovements');
+    await _firestore.runTransaction((txn) async {
+      for (final e in itemsRaw) {
+        final m = Map<String, dynamic>.from(e as Map);
+        final productId = m['productId'] as String? ?? '';
+        final productName = m['productName'] as String? ?? '';
+        final sentQuantity = ((m['sentQuantity'] as num?) ?? 0).toDouble();
+        final sentChickenCount = (m['sentChickenCount'] as num?)?.toInt() ?? 0;
+        if (productId.isEmpty || sentQuantity <= 0) continue;
+
+        final stockRef = _firestore
+            .collection('businesses').doc(businessId)
+            .collection('products').doc(productId)
+            .collection('stockByStore').doc(fromStoreId);
+        final stockDoc = await txn.get(stockRef);
+        final stockData = stockDoc.data() as Map<String, dynamic>?;
+        final currentQty = (stockData?['stockQuantity'] as num?)?.toDouble() ?? 0;
+        final currentChickens = (stockData?['chickenCount'] as num?)?.toInt() ?? 0;
+        final newQty = (currentQty - sentQuantity).clamp(0.0, double.infinity);
+        final newChickenCount = (currentChickens - sentChickenCount).clamp(0, 999999);
+
+        final update = <String, dynamic>{
+          'stockQuantity': newQty,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (sentChickenCount > 0) {
+          update['chickenCount'] = newChickenCount;
+        }
+        txn.set(stockRef, update, SetOptions(merge: true));
+
+        txn.set(movementsRef.doc(), {
+          'businessId': businessId,
+          'storeId': fromStoreId,
+          'fromStoreId': fromStoreId,
+          'toStoreId': toStoreId,
+          'fromStoreName': fromStoreName,
+          'toStoreName': toStoreName,
+          'productId': productId,
+          'productName': productName,
+          'type': 'transfer',
+          'previousQuantity': currentQty,
+          'newQuantity': newQty,
+          'difference': newQty - currentQty,
+          'reason': 'Traspaso enviado',
+          'employeeId': fromEmployeeId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      txn.set(ref, transferMap);
+    });
+  } else {
+    await ref.set(transferMap);
+  }
 }
 
 Future<void> _handleCancelTransfer(Map<String, dynamic> data) async {
@@ -1193,7 +1256,6 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
     final toStoreId = (transferData['toStoreId'] as String?) ?? '';
     final fromStoreName = (transferData['fromStoreName'] as String?) ?? '';
     final toStoreName = (transferData['toStoreName'] as String?) ?? '';
-    final fromEmployeeId = (transferData['fromEmployeeId'] as String?) ?? '';
 
     DocumentReference itemStockRef(String productId, String storeId) => _firestore
         .collection('businesses').doc(businessId)
@@ -1203,11 +1265,6 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
     final stockSnapshots = <String, double>{};
     final chickenSnapshots = <String, int>{};
     for (final item in filteredItems) {
-      final fromDoc = await txn.get(itemStockRef(item.productId, fromStoreId));
-      stockSnapshots['from_${item.productId}'] =
-          (((fromDoc.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
-      chickenSnapshots['from_${item.productId}'] =
-          (((fromDoc.data() as Map<String, dynamic>?)?['chickenCount'] ?? 0) as num).toInt();
       final toDoc = await txn.get(itemStockRef(item.productId, toStoreId));
       stockSnapshots['to_${item.productId}'] =
           (((toDoc.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
@@ -1217,21 +1274,7 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
 
     for (final item in filteredItems) {
       final qty = item.confirmedQuantity!;
-      final sentChickens = item.sentChickenCount ?? 0;
       final confirmedChickens = item.confirmedChickenCount;
-
-      final fromQty = stockSnapshots['from_${item.productId}'] ?? 0;
-      final newFromQty = (fromQty - qty).clamp(0.0, double.infinity);
-      final fromChickenCount = chickenSnapshots['from_${item.productId}'] ?? 0;
-      final newFromChickenCount = (fromChickenCount - sentChickens).clamp(0, 999999);
-      final fromUpdate = <String, dynamic>{
-        'stockQuantity': newFromQty,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-      if (sentChickens > 0) {
-        fromUpdate['chickenCount'] = newFromChickenCount;
-      }
-      txn.set(itemStockRef(item.productId, fromStoreId), fromUpdate, SetOptions(merge: true));
 
       final toQty = stockSnapshots['to_${item.productId}'] ?? 0;
       final newToQty = toQty + qty;
@@ -1250,24 +1293,6 @@ Future<void> _handleConfirmTransfer(Map<String, dynamic> data) async {
         toUpdate['chickenCount'] = newToChickenCount;
       }
       txn.set(itemStockRef(item.productId, toStoreId), toUpdate, SetOptions(merge: true));
-
-      txn.set(movementsRef.doc(), {
-        'businessId': businessId,
-        'storeId': fromStoreId,
-        'fromStoreId': fromStoreId,
-        'toStoreId': toStoreId,
-        'fromStoreName': fromStoreName,
-        'toStoreName': toStoreName,
-        'productId': item.productId,
-        'productName': item.productName,
-        'type': 'transfer',
-        'previousQuantity': fromQty,
-        'newQuantity': newFromQty,
-        'difference': newFromQty - fromQty,
-        'reason': 'Traspaso enviado',
-        'employeeId': fromEmployeeId,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
 
       txn.set(movementsRef.doc(), {
         'businessId': businessId,

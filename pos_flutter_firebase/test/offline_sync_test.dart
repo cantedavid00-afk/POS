@@ -504,6 +504,7 @@ void main() {
               {'productId': 'p1', 'productName': 'X', 'sentQuantity': 5.0, 'confirmedQuantity': 3.0},
             ],
           });
+      // Sender stock already debited on send; only receiver gets stock on confirm.
       await firestore.collection('businesses').doc(businessId)
           .collection('products').doc('p1').collection('stockByStore').doc('storeA')
           .set({'stockQuantity': 10.0});
@@ -524,9 +525,10 @@ void main() {
       await handlers['confirmTransfer']!(data);
       await handlers['confirmTransfer']!(data);
 
+      // Sender stock unchanged (already debited on send).
       final storeA = await firestore.collection('businesses').doc(businessId)
           .collection('products').doc('p1').collection('stockByStore').doc('storeA').get();
-      expect(storeA.data()!['stockQuantity'], 7.0);
+      expect(storeA.data()!['stockQuantity'], 10.0);
       final storeB = await firestore.collection('businesses').doc(businessId)
           .collection('products').doc('p1').collection('stockByStore').doc('storeB').get();
       expect(storeB.data()!['stockQuantity'], 8.0);
@@ -537,7 +539,7 @@ void main() {
 
       final movements = await firestore.collection('businesses').doc(businessId)
           .collection('inventoryMovements').get();
-      expect(movements.docs.length, 2);
+      expect(movements.docs.length, 1);
     });
 
     test('cancelTransfer handler is idempotent', () async {
