@@ -79,14 +79,15 @@ class InventoryService implements InventoryRepository {
     return LocalDatabase.getCachedInventoryMovements(businessId);
   }
 
-  Future<void> adjustStock({
-    required String businessId,
-    required String storeId,
-    required Product product,
-    required double newQuantity,
-    required String reason,
-    required String employeeId,
-  }) async {
+   Future<void> adjustStock({
+     required String businessId,
+     required String storeId,
+     required Product product,
+     required double newQuantity,
+     required String reason,
+     required String employeeId,
+     String type = 'adjustment',
+   }) async {
     if (!product.trackStock) {
       throw StateError('Este producto no controla inventario');
     }
@@ -127,24 +128,25 @@ class InventoryService implements InventoryRepository {
           'storeId': storeId,
           'productId': product.id,
           'productName': product.name,
-          'type': 'adjustment',
-          'previousQuantity': previousQuantity,
-          'newQuantity': newQuantity,
-          'difference': difference,
-          'reason': reason.trim().isEmpty ? 'Ajuste manual' : reason.trim(),
-          'employeeId': employeeId,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      });
-    } else {
-      await SyncQueue.enqueue(type: 'adjustStock', data: {
-        'businessId': businessId,
-        'storeId': storeId,
-        'productId': product.id,
-        'newQuantity': newQuantity,
-        'reason': reason.trim().isEmpty ? 'Ajuste manual' : reason.trim(),
-        'employeeId': employeeId,
-      });
+           'type': type,
+           'previousQuantity': previousQuantity,
+           'newQuantity': newQuantity,
+           'difference': difference,
+           'reason': reason.trim().isEmpty ? 'Ajuste manual' : reason.trim(),
+           'employeeId': employeeId,
+           'createdAt': FieldValue.serverTimestamp(),
+         });
+       });
+     } else {
+       await SyncQueue.enqueue(type: 'adjustStock', data: {
+         'businessId': businessId,
+         'storeId': storeId,
+         'productId': product.id,
+         'newQuantity': newQuantity,
+         'reason': reason.trim().isEmpty ? 'Ajuste manual' : reason.trim(),
+         'employeeId': employeeId,
+         'type': type,
+       });
     }
   }
 }

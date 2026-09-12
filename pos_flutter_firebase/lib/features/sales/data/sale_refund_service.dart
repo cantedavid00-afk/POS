@@ -243,6 +243,8 @@ class SaleRefundService {
         'subtotal': refundSubtotal,
         'total': refundSubtotal,
         'paymentMethod': sale.paymentMethod,
+        'cashAmount': sale.cashAmount,
+        'cardAmount': sale.cardAmount,
         'status': 'refund',
         'reason': reason,
         'createdAt': FieldValue.serverTimestamp(),

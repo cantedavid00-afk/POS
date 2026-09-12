@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +6,7 @@ import '../../../shared/models/app_session.dart';
 import '../../../shared/models/employee.dart';
 import '../../../shared/models/store.dart';
 import '../../../shared/providers/app_session_notifier.dart';
+import 'desktop/desktop_layout.dart';
 import 'back_office_screen.dart';
 import '../../business/ui/business_setup_screen.dart';
 import '../../employees/ui/employee_pin_screen.dart';
@@ -18,6 +20,7 @@ import '../../sales/ui/receipts_screen.dart';
 import '../../settings/ui/settings_screen.dart';
 import '../../shift/ui/shift_screen.dart';
 import '../../../features/auth/domain/auth_repository.dart';
+import '../../../features/losses/ui/losses_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   AuthRepository get _authService => context.read<AuthRepository>();
+  bool get _isDesktop => Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
   int _selectedIndex = 0;
 
@@ -36,9 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Consumer<AppSessionNotifier>(
       builder: (context, sessionNotifier, _) {
         if (sessionNotifier.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
         final session = sessionNotifier.session;
@@ -70,6 +72,10 @@ class _HomeScreenState extends State<HomeScreen> {
             onSelectStore: (store) => sessionNotifier.selectStore(store),
             onSignOut: _authService.signOut,
           );
+        }
+
+        if (_isDesktop) {
+          return DesktopLayout();
         }
 
         return _buildMainScaffold(session, selectedStore, sessionNotifier.resolvedEmployee);
@@ -221,8 +227,14 @@ class _HomeScreenState extends State<HomeScreen> {
           store: selectedStore,
           employee: activeEmployee,
         );
-      case 'settings':
-        return SettingsScreen(businessId: session.business.id);
+       case 'losses':
+         return LossesScreen(
+           businessId: session.business.id,
+           store: selectedStore,
+           employee: activeEmployee,
+         );
+       case 'settings':
+         return SettingsScreen(businessId: session.business.id);
       default:
         return BackOfficeScreen(
           businessId: session.business.id,
@@ -250,7 +262,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _NavItem('receive_transfer', Icons.arrow_downward, 'Recibir'),
       ],
       if (employee.isAdmin) const _NavItem('settings', Icons.settings, 'Config'),
-      if (employee.isAdmin) const _NavItem('backOffice', Icons.admin_panel_settings, 'Back Office'),
+       if (employee.isAdmin || employee.hasPermission('losses'))
+         const _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
+       if (employee.isAdmin) const _NavItem('backOffice', Icons.admin_panel_settings, 'Back Office'),
     ];
   }
 }

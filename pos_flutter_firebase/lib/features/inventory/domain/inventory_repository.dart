@@ -8,12 +8,13 @@ abstract class InventoryRepository {
 
   List<InventoryMovement>? getCachedMovements(String businessId);
 
-  Future<void> adjustStock({
-    required String businessId,
-    required String storeId,
-    required Product product,
-    required double newQuantity,
-    required String reason,
-    required String employeeId,
-  });
+   Future<void> adjustStock({
+     required String businessId,
+     required String storeId,
+     required Product product,
+     required double newQuantity,
+     required String reason,
+     required String employeeId,
+     String type = 'adjustment',
+   });
 }

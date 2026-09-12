@@ -550,6 +550,8 @@ class SaleAdapter extends TypeAdapter<Sale> {
       paymentMethod: fields[11] as String,
       cashReceived: fields[12] as double?,
       changeDue: fields[13] as double?,
+      cashAmount: fields[29] as double?,
+      cardAmount: fields[30] as double?,
       status: fields[14] as String,
       originalSaleId: fields[15] as String?,
       returnedItems: (fields[16] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList(),
@@ -566,7 +568,7 @@ class SaleAdapter extends TypeAdapter<Sale> {
 
   @override
   void write(BinaryWriter writer, Sale obj) {
-    writer.writeByte(29);
+    writer.writeByte(31);
     writer.writeByte(0);
     writer.write(obj.id);
     writer.writeByte(1);
@@ -625,6 +627,10 @@ class SaleAdapter extends TypeAdapter<Sale> {
     writer.write(obj.discountType);
     writer.writeByte(28);
     writer.write(obj.discountValue);
+    writer.writeByte(29);
+    writer.write(obj.cashAmount);
+    writer.writeByte(30);
+    writer.write(obj.cardAmount);
   }
 }
 

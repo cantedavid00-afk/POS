@@ -26,6 +26,20 @@ class AppColors {
   static const darkText = Color(0xFFF1F3F5);
   static const darkTextSecondary = Color(0xFFADB5BD);
   static const darkTextTertiary = Color(0xFF6C757D);
+
+  // Desktop sidebar colors
+  static const sidebarBg = Color(0xFF1E1E2E);
+  static const sidebarSurface = Color(0xFF252536);
+  static const sidebarHover = Color(0xFF2D2D44);
+  static const sidebarActive = Color(0xFFF76707);
+  static const sidebarText = Color(0xFFCDD6F4);
+  static const sidebarTextSecondary = Color(0xFF6C7086);
+  static const sidebarBorder = Color(0xFF313244);
+  static const desktopCardShadow = Color(0x1A000000);
+  static const desktopRadius = BorderRadius.all(Radius.circular(12));
+  static const desktopShadow = [
+    BoxShadow(color: desktopCardShadow, blurRadius: 12, spreadRadius: -2, offset: Offset(0, 4)),
+  ];
 }
 
 class AppTheme {

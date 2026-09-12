@@ -727,6 +727,31 @@ class _InventoryTabState extends State<_InventoryTab> {
               },
             ),
             const SizedBox(height: 24),
+            Text('Pérdidas de mercancía', style: Theme.of(context).textTheme.titleMedium),
+            StreamBuilder<List<InventoryMovement>>(
+              stream: _movementsStream,
+              builder: (context, snapshot) {
+                final losses = (snapshot.data ?? const <InventoryMovement>[])
+                    .where((movement) => movement.type == 'loss' && (widget.selectedStoreId == null || movement.storeId == widget.selectedStoreId))
+                    .toList();
+                if (losses.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('Sin pérdidas registradas.'),
+                  );
+                }
+                return Column(
+                  children: losses.take(20).map((movement) {
+                    return ListTile(
+                      title: Text(movement.productName),
+                      subtitle: Text('${movement.typeLabel} · ${movement.reason} · ${_formatDate(movement.createdAt)}'),
+                      trailing: Text('-${_formatQuantity(movement.difference.abs())}'),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
             Text('Anomalías de destazado', style: Theme.of(context).textTheme.titleMedium),
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -809,6 +834,11 @@ class _InventoryTabState extends State<_InventoryTab> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Fecha pendiente';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   String _formatQuantity(double value) {
@@ -956,7 +986,9 @@ class _ReportSummary {
       return total + (sale.discountTotal + _lineDiscounts(sale)) * factor;
     });
     final cashSales = originalSales.where((sale) => sale.paymentMethod == 'cash').fold<double>(0, (total, sale) => total + sale.total);
-    final cardSales = originalSales.where((sale) => sale.paymentMethod == 'card').fold<double>(0, (total, sale) => total + sale.total);
+    final splitCashSales = originalSales.where((sale) => sale.paymentMethod == 'split').fold<double>(0, (total, sale) => total + (sale.cashAmount ?? 0));
+    final splitCardSales = originalSales.where((sale) => sale.paymentMethod == 'split').fold<double>(0, (total, sale) => total + (sale.cardAmount ?? 0));
+    final cardSales = originalSales.where((sale) => sale.paymentMethod == 'card').fold<double>(0, (total, sale) => total + sale.total) + splitCardSales;
     final products = <String, double>{};
     final categories = <String, double>{};
     final employees = <String, double>{};
@@ -967,7 +999,7 @@ class _ReportSummary {
     for (final sale in originalSales) {
       final employeeName = employeeNames[sale.employeeId] ?? sale.employeeId;
       employees[employeeName] = (employees[employeeName] ?? 0) + sale.total;
-      final paymentLabel = sale.paymentMethod == 'card' ? 'Tarjeta' : 'Efectivo';
+      final paymentLabel = sale.paymentMethod == 'card' ? 'Tarjeta' : sale.paymentMethod == 'split' ? 'Dividido' : 'Efectivo';
       paymentTypes[paymentLabel] = (paymentTypes[paymentLabel] ?? 0) + sale.total;
       if (sale.discountTotal > 0) {
         final label = sale.discountName.isNotEmpty ? sale.discountName : 'Descuento sin nombre';
@@ -1002,7 +1034,7 @@ class _ReportSummary {
     }
 
     for (final refund in refunds) {
-      final paymentLabel = refund.paymentMethod == 'card' ? 'Devolucion tarjeta' : 'Devolucion efectivo';
+      final paymentLabel = refund.paymentMethod == 'card' ? 'Devolucion tarjeta' : refund.paymentMethod == 'split' ? 'Devolucion dividido' : 'Devolucion efectivo';
       paymentTypes[paymentLabel] = (paymentTypes[paymentLabel] ?? 0) - refund.total;
       final date = refund.createdAt ?? refund.clientCreatedAt;
       if (date != null) {
@@ -1014,7 +1046,7 @@ class _ReportSummary {
     return _ReportSummary(
       grossSales: grossSales,
       netSales: paidTotal - refundTotal,
-      cashSales: cashSales,
+      cashSales: cashSales + splitCashSales,
       cardSales: cardSales,
       refunds: refundTotal,
       discounts: discounts,

@@ -360,12 +360,13 @@ class _ShiftSummary {
     final originalSales = sales.where((sale) => !sale.isRefund).toList();
     final refunds = sales.where((sale) => sale.isRefund).toList();
     final cashSales = originalSales.where((sale) => sale.paymentMethod == 'cash').fold<double>(0, (total, sale) => total + sale.total);
+    final splitCashSales = originalSales.where((sale) => sale.paymentMethod == 'split').fold<double>(0, (total, sale) => total + (sale.cashAmount ?? 0));
     final cashRefunds = refunds.where((sale) => sale.paymentMethod == 'cash').fold<double>(0, (total, sale) => total + sale.total);
     final grossSales = originalSales.fold<double>(0, (total, sale) => total + _grossSale(sale));
     final refundTotal = refunds.fold<double>(0, (total, sale) => total + sale.total);
     final discounts = originalSales.fold<double>(0, (total, sale) => total + sale.discountTotal + _lineDiscounts(sale));
     final netSales = originalSales.fold<double>(0, (total, sale) => total + sale.total) - refundTotal;
-    final expectedCash = shift.openingCash + cashSales - cashRefunds + shift.depositsTotal - shift.payoutsTotal;
+    final expectedCash = shift.openingCash + cashSales + splitCashSales - cashRefunds + shift.depositsTotal - shift.payoutsTotal;
     final cashShortage = expectedCash < 0 ? expectedCash.abs() : 0.0;
 
     return _ShiftSummary(

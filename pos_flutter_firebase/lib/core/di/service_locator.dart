@@ -37,6 +37,8 @@ import '../../features/sales/domain/pdf_repository.dart';
 import '../../features/sales/data/pdf_service.dart';
 import '../../features/sales/domain/sale_repository.dart';
 import '../../features/sales/data/sale_service.dart';
+import '../../features/losses/data/loss_service.dart';
+import '../../features/losses/domain/loss_repository.dart';
 import '../../features/shift/domain/shift_repository.dart';
 import '../../features/shift/data/shift_service.dart';
 
@@ -53,10 +55,11 @@ class ServiceLocator {
   late final ModifierRepository modifierRepository;
   late final DiscountRepository discountRepository;
   late final OpenTicketRepository openTicketRepository;
-  late final StockRepository stockRepository;
-  late final InventoryRepository inventoryRepository;
-  late final SaleRepository saleRepository;
-  late final ShiftRepository shiftRepository;
+   late final StockRepository stockRepository;
+   late final InventoryRepository inventoryRepository;
+   late final LossRepository lossRepository;
+   late final SaleRepository saleRepository;
+   late final ShiftRepository shiftRepository;
   late final ButcherRepository butcherRepository;
   late final PdfRepository pdfRepository;
   late final PoultryRepository poultryRepository;
@@ -78,10 +81,14 @@ class ServiceLocator {
     discountRepository = DiscountService();
     openTicketRepository = OpenTicketService();
     stockRepository = StockService();
-    inventoryRepository = InventoryService(
-      connectivityService: connectivityService,
-    );
-    saleRepository = SaleService(
+     inventoryRepository = InventoryService(
+       connectivityService: connectivityService,
+     );
+     lossRepository = LossService(
+       inventoryRepository: inventoryRepository,
+       stockRepository: stockRepository,
+     );
+     saleRepository = SaleService(
       connectivityService: connectivityService,
       stockService: stockRepository as StockService,
     );
@@ -115,9 +122,10 @@ class ServiceLocator {
     Provider<ModifierRepository>.value(value: modifierRepository),
     Provider<DiscountRepository>.value(value: discountRepository),
     Provider<OpenTicketRepository>.value(value: openTicketRepository),
-    Provider<StockRepository>.value(value: stockRepository),
-    Provider<InventoryRepository>.value(value: inventoryRepository),
-    Provider<SaleRepository>.value(value: saleRepository),
+     Provider<StockRepository>.value(value: stockRepository),
+     Provider<InventoryRepository>.value(value: inventoryRepository),
+     Provider<LossRepository>.value(value: lossRepository),
+     Provider<SaleRepository>.value(value: saleRepository),
     Provider<ShiftRepository>.value(value: shiftRepository),
     Provider<ButcherRepository>.value(value: butcherRepository),
     Provider<PdfRepository>.value(value: pdfRepository),

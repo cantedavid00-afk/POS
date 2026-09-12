@@ -50,6 +50,8 @@ class SaleService implements SaleRepository {
     required String paymentMethod,
     double? cashReceived,
     double? changeDue,
+    double? cashAmount,
+    double? cardAmount,
     String? createdByUid,
   }) =>
       _creatorService.createSale(
@@ -68,6 +70,8 @@ class SaleService implements SaleRepository {
         paymentMethod: paymentMethod,
         cashReceived: cashReceived,
         changeDue: changeDue,
+        cashAmount: cashAmount,
+        cardAmount: cardAmount,
         createdByUid: createdByUid,
       );
 

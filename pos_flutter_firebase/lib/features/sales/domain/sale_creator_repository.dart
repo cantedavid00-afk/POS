@@ -17,6 +17,8 @@ abstract class SaleCreatorRepository {
     required String paymentMethod,
     double? cashReceived,
     double? changeDue,
+    double? cashAmount,
+    double? cardAmount,
     String? createdByUid,
   });
 }

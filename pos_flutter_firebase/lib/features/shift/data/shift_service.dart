@@ -343,11 +343,17 @@ class ShiftService implements ShiftRepository {
       final cardSales = parsedSales
           .where((sale) => !sale.isRefund && sale.paymentMethod == 'card')
           .fold<double>(0, (total, sale) => total + sale.total);
+      final splitCashSales = parsedSales
+          .where((sale) => !sale.isRefund && sale.paymentMethod == 'split')
+          .fold<double>(0, (total, sale) => total + (sale.cashAmount ?? 0));
+      final splitCardSales = parsedSales
+          .where((sale) => !sale.isRefund && sale.paymentMethod == 'split')
+          .fold<double>(0, (total, sale) => total + (sale.cardAmount ?? 0));
       final cashRefunds = refunds
           .where((sale) => sale.paymentMethod == 'cash')
           .fold<double>(0, (total, sale) => total + sale.total);
       final totalSales = originalSales.fold<double>(0, (total, sale) => total + sale.total);
-      final expectedCash = shift.openingCash + cashSales - cashRefunds + shift.depositsTotal - shift.payoutsTotal;
+      final expectedCash = shift.openingCash + cashSales + splitCashSales - cashRefunds + shift.depositsTotal - shift.payoutsTotal;
 
       final shiftStart = shift.openedAt ?? DateTime.now().subtract(const Duration(days: 1));
       final shiftEnd = DateTime.now();
@@ -409,8 +415,8 @@ class ShiftService implements ShiftRepository {
           .update({
         'status': 'closed',
         'closingCash': closingCash,
-        'cashSales': cashSales,
-        'cardSales': cardSales,
+          'cashSales': cashSales + splitCashSales,
+          'cardSales': cardSales + splitCardSales,
         'totalSales': totalSales,
         'cashRefunds': cashRefunds,
         'expectedCash': expectedCash,

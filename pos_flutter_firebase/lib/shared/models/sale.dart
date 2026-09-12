@@ -20,6 +20,8 @@ class Sale {
     required this.paymentMethod,
     required this.cashReceived,
     required this.changeDue,
+    this.cashAmount,
+    this.cardAmount,
     required this.status,
     required this.originalSaleId,
     required this.returnedItems,
@@ -51,6 +53,8 @@ class Sale {
   final String paymentMethod;
   final double? cashReceived;
   final double? changeDue;
+  final double? cashAmount;
+  final double? cardAmount;
   final String status;
   final String? originalSaleId;
   final List<Map<String, dynamic>> returnedItems;
@@ -93,6 +97,8 @@ class Sale {
       paymentMethod: data['paymentMethod'] as String? ?? 'cash',
       cashReceived: (data['cashReceived'] as num?)?.toDouble(),
       changeDue: (data['changeDue'] as num?)?.toDouble(),
+      cashAmount: (data['cashAmount'] as num?)?.toDouble(),
+      cardAmount: (data['cardAmount'] as num?)?.toDouble(),
       status: data['status'] as String? ?? 'completed',
       originalSaleId: data['originalSaleId'] as String?,
       returnedItems: List<Map<String, dynamic>>.from(

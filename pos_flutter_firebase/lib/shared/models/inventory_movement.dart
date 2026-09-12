@@ -83,6 +83,8 @@ class InventoryMovement {
         return 'Venta';
       case 'refund':
         return 'Devolucion';
+      case 'loss':
+        return 'Pérdida';
       case 'adjustment':
         return 'Ajuste';
       case 'butchering':

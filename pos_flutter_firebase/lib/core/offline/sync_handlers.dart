@@ -342,11 +342,13 @@ Future<void> _handleCreateSale(Map<String, dynamic> data) async {
       'discountId': _optString(data, 'discountId') ?? '',
       'discountType': _optString(data, 'discountType') ?? '',
       'discountValue': data['discountValue'] == null ? 0.0 : (data['discountValue'] as num).toDouble(),
-      'total': _dbl(data, 'total'),
-      'paymentMethod': _str(data, 'paymentMethod'),
-      'cashReceived': data['cashReceived'],
-      'changeDue': data['changeDue'],
-      'createdByUid': data['createdByUid'],
+       'total': _dbl(data, 'total'),
+       'paymentMethod': _str(data, 'paymentMethod'),
+       'cashReceived': data['cashReceived'],
+       'changeDue': data['changeDue'],
+       'cashAmount': data['cashAmount'],
+       'cardAmount': data['cardAmount'],
+       'createdByUid': data['createdByUid'],
       'type': 'sale',
       'status': 'completed',
       'createdAt': FieldValue.serverTimestamp(),
@@ -496,8 +498,10 @@ Future<void> _handleCancelSale(Map<String, dynamic> data) async {
       'items': returnItems,
       'subtotal': refundTotal,
       'total': refundTotal,
-      'paymentMethod': saleData['paymentMethod'] ?? 'cash',
-      'status': 'refund',
+       'paymentMethod': saleData['paymentMethod'] ?? 'cash',
+       'cashAmount': saleData['cashAmount'],
+       'cardAmount': saleData['cardAmount'],
+       'status': 'refund',
       'reason': reason,
       'createdAt': FieldValue.serverTimestamp(),
       'clientCreatedAt': clientCreatedAt,
@@ -647,6 +651,10 @@ Future<void> _handleCloseShift(Map<String, dynamic> data) async {
       totalSales += (saleData['total'] as num?)?.toDouble() ?? 0;
       if (saleData['paymentMethod'] == 'cash') cashSales += (saleData['total'] as num?)?.toDouble() ?? 0;
       if (saleData['paymentMethod'] == 'card') cardSales += (saleData['total'] as num?)?.toDouble() ?? 0;
+      if (saleData['paymentMethod'] == 'split') {
+        cashSales += (saleData['cashAmount'] as num?)?.toDouble() ?? 0;
+        cardSales += (saleData['cardAmount'] as num?)?.toDouble() ?? 0;
+      }
     }
   }
 
@@ -869,7 +877,7 @@ Future<void> _handleAdjustStock(Map<String, dynamic> data) async {
       'storeId': storeId,
       'productId': productId,
       'productName': productDoc.data()?['name'] ?? '',
-      'type': 'adjustment',
+       'type': data['type'] ?? 'adjustment',
       'previousQuantity': previousStock,
       'newQuantity': newQuantity,
       'difference': difference,
