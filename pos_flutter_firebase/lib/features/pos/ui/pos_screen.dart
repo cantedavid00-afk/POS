@@ -240,8 +240,11 @@ class _PosScreenState extends State<PosScreen> {
 
       _cartProvider.clear();
       if (paymentMethod == 'split') {
+        final cambio = changeDue ?? 0;
         _showMessage(
-          'Venta $folio guardada. Efectivo: \$${(cashAmount ?? 0).toStringAsFixed(2)} · Tarjeta: \$${(cardAmount ?? 0).toStringAsFixed(2)}',
+          cambio > 0.009
+              ? 'Venta $folio guardada. Efectivo: \$${(cashAmount ?? 0).toStringAsFixed(2)} · Tarjeta: \$${(cardAmount ?? 0).toStringAsFixed(2)} · Cambio: \$${cambio.toStringAsFixed(2)}'
+              : 'Venta $folio guardada. Efectivo: \$${(cashAmount ?? 0).toStringAsFixed(2)} · Tarjeta: \$${(cardAmount ?? 0).toStringAsFixed(2)}',
         );
       } else {
         _showMessage(
@@ -280,6 +283,8 @@ class _PosScreenState extends State<PosScreen> {
         shift: shift,
         cashAmount: payment.cashAmount,
         cardAmount: payment.cardAmount,
+        cashReceived: payment.received,
+        changeDue: payment.change,
       );
       return;
     }
@@ -1266,73 +1271,62 @@ class _CashPaymentDialog extends StatefulWidget {
 
 class _CashPaymentDialogState extends State<_CashPaymentDialog> {
   late final TextEditingController _receivedController;
-  late double _received;
+  late final TextEditingController _cardController;
   String? _errorMessage;
-  String _paymentMode = 'cash';
-  double _cashAmount = 0;
-  double _cardAmount = 0;
+  bool _isSplit = false;
 
   @override
   void initState() {
     super.initState();
-    _received = widget.total;
     _receivedController = TextEditingController(text: widget.total.toStringAsFixed(2));
+    _cardController = TextEditingController(text: '0.00');
   }
 
   @override
   void dispose() {
     _receivedController.dispose();
+    _cardController.dispose();
     super.dispose();
   }
 
+  double get _cashReceived => double.tryParse(_receivedController.text.trim().replaceAll(',', '.')) ?? 0;
+  double get _cardAmount => double.tryParse(_cardController.text.trim().replaceAll(',', '.')) ?? 0;
+
   @override
   Widget build(BuildContext context) {
-    final change = _received - widget.total;
-    final suggestions = _cashSuggestions(widget.total);
+    final total = widget.total;
+    final suggestions = _cashSuggestions(total);
+    final cashReceived = _cashReceived;
+    final cardAmount = _cardAmount;
+    final efectivoNecesario = (total - cardAmount).clamp(0.0, double.infinity);
+    final cambio = (cashReceived - efectivoNecesario).clamp(0.0, double.infinity);
+    final falta = (efectivoNecesario - cashReceived).clamp(0.0, double.infinity);
 
     return AlertDialog(
-      title: const Text('Cobrar venta'),
+      title: Row(
+        children: [
+          const Expanded(child: Text('Cobrar venta')),
+          IconButton(
+            tooltip: 'Pago dividido',
+            icon: const Icon(Icons.more_vert),
+            onPressed: () => setState(() {
+              _isSplit = !_isSplit;
+              _errorMessage = null;
+            }),
+          ),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Total: \$${widget.total.toStringAsFixed(2)}'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ActionChip(
-                    label: const Text('Efectivo'),
-                    onPressed: () => setState(() => _paymentMode = 'cash'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ActionChip(
-                    label: const Text('Tarjeta'),
-                    onPressed: () => setState(() {
-                      _paymentMode = 'card';
-                      _received = widget.total;
-                    }),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ActionChip(
-                    label: const Text('Dividir'),
-                    onPressed: () => setState(() {
-                      _paymentMode = 'split';
-                    }),
-                  ),
-                ),
-              ],
-            ),
+            Text('Total: \$${total.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            if (_paymentMode != 'split') ...[
+            if (!_isSplit) ...[
               TextField(
                 controller: _receivedController,
-                autofocus: false,
+                autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: 'Dinero recibido',
@@ -1340,13 +1334,7 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
                   errorText: _errorMessage,
                   border: const OutlineInputBorder(),
                 ),
-                onChanged: (value) {
-                  final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
-                  setState(() {
-                    _received = parsed ?? 0;
-                    _errorMessage = null;
-                  });
-                },
+                onChanged: (_) => setState(() => _errorMessage = null),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -1362,86 +1350,97 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
                     .toList(),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Cambio: \$${change < 0 ? 0.toStringAsFixed(2) : change.toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Builder(builder: (context) {
+                final change = cashReceived - total;
+                return Text(
+                  'Cambio: \$${change < 0 ? 0.toStringAsFixed(2) : change.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleLarge,
+                );
+              }),
             ] else ...[
               TextField(
-                controller: TextEditingController(text: _cashAmount.toStringAsFixed(2)),
-                autofocus: true,
+                controller: _cardController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Monto en efectivo',
-                  hintText: 'Cuanto paga en efectivo',
+                  labelText: 'Monto con tarjeta',
+                  hintText: 'Cuanto paga con tarjeta',
+                  errorText: _errorMessage != null && cardAmount > total ? _errorMessage : null,
                   border: const OutlineInputBorder(),
                 ),
-                onChanged: (value) {
-                  final parsed = double.tryParse(value.trim().replaceAll(',', '.')) ?? 0;
-                  setState(() => _cashAmount = parsed);
-                },
+                onChanged: (_) => setState(() => _errorMessage = null),
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: TextEditingController(text: _cardAmount.toStringAsFixed(2)),
+                controller: _receivedController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Monto en tarjeta',
-                  hintText: 'Cuanto paga con tarjeta',
+                  labelText: 'Efectivo recibido',
+                  hintText: 'Cuanto entrega en efectivo',
+                  errorText: _errorMessage != null && _isSplit ? _errorMessage : null,
                   border: const OutlineInputBorder(),
                 ),
-                onChanged: (value) {
-                  final parsed = double.tryParse(value.trim().replaceAll(',', '.')) ?? 0;
-                  setState(() => _cardAmount = parsed);
-                },
+                onChanged: (_) => setState(() => _errorMessage = null),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Total pagado: \$${(_cashAmount + _cardAmount).toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Text(
-                    'Diferencia: \$${(widget.total - (_cashAmount + _cardAmount)).toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: (widget.total - (_cashAmount + _cardAmount)).abs() < 0.01
-                          ? Colors.green
-                          : Colors.red,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Efectivo necesario:'),
+                        Text('\$${efectivoNecesario.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    if (falta > 0.009)
+                      Text('Falta efectivo: \$${falta.toStringAsFixed(2)}',
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700))
+                    else
+                      Text('Cambio: \$${cambio.toStringAsFixed(2)}',
+                          style: TextStyle(
+                              color: cambio > 0 ? Colors.green : null, fontWeight: FontWeight.w700)),
+                  ],
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                'El total debe ser igual a \$${widget.total.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color: (widget.total - (_cashAmount + _cardAmount)).abs() < 0.01
-                      ? Colors.green
-                      : Colors.red,
-                ),
+                'Tarjeta (\$${cardAmount.toStringAsFixed(2)}) + Efectivo necesario (\$${efectivoNecesario.toStringAsFixed(2)}) = \$${total.toStringAsFixed(2)}',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
+            ],
+            if (_errorMessage != null && _isSplit) ...[
+              const SizedBox(height: 8),
+              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             ],
           ],
         ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-        if (_paymentMode != 'split') ...[
+        if (!_isSplit) ...[
           FilledButton.tonalIcon(
             onPressed: _submitCard,
             icon: const Icon(Icons.credit_card),
             label: const Text('Cobrar con tarjeta'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
           ),
           FilledButton(
             onPressed: _submit,
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
             child: const Text('Cobrar efectivo'),
           ),
         ] else ...[
           FilledButton(
             onPressed: _submitSplit,
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
             child: const Text('Cobrar dividido'),
           ),
         ],
@@ -1451,47 +1450,44 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
 
   void _setReceived(double value) {
     _receivedController.text = value.toStringAsFixed(2);
-    setState(() {
-      _received = value;
-      _errorMessage = null;
-    });
+    setState(() => _errorMessage = null);
   }
 
   void _submit() {
     final parsed = double.tryParse(_receivedController.text.trim().replaceAll(',', '.'));
-    if (parsed == null || parsed < widget.total) {
-      setState(() {
-        _received = parsed ?? 0;
-        _errorMessage = 'El dinero recibido no cubre el total';
-      });
+    if (parsed == null || parsed < widget.total - 0.009) {
+      setState(() => _errorMessage = 'El dinero recibido no cubre el total');
       return;
     }
-
     Navigator.pop(
       context,
-      (method: 'cash', received: parsed, change: parsed - widget.total),
+      (method: 'cash', cashAmount: null, cardAmount: null, received: parsed, change: parsed - widget.total),
     );
   }
 
   void _submitCard() {
     Navigator.pop(
       context,
-      (method: 'card', received: null, change: null),
+      (method: 'card', cashAmount: null, cardAmount: null, received: null, change: null),
     );
   }
 
   void _submitSplit() {
-    final totalPaid = _cashAmount + _cardAmount;
-    if ((totalPaid - widget.total).abs() > 0.01) {
-      setState(() {
-        _errorMessage = 'El total en efectivo + tarjeta debe ser igual al total de la venta';
-      });
+    final card = _cardAmount;
+    final cashReceived = _cashReceived;
+    if (card < -0.009 || card > widget.total + 0.009) {
+      setState(() => _errorMessage = 'El monto con tarjeta no puede exceder el total');
       return;
     }
-
+    final efectivoNecesario = (widget.total - card).clamp(0.0, widget.total);
+    if (cashReceived < efectivoNecesario - 0.009) {
+      setState(() => _errorMessage = 'Falta efectivo: necesita \$${efectivoNecesario.toStringAsFixed(2)} y recibió \$${cashReceived.toStringAsFixed(2)}');
+      return;
+    }
+    final cambio = cashReceived - efectivoNecesario;
     Navigator.pop(
       context,
-      (method: 'split', cashAmount: _cashAmount, cardAmount: _cardAmount, received: null, change: null),
+      (method: 'split', cashAmount: efectivoNecesario, cardAmount: card, received: cashReceived, change: cambio),
     );
   }
 

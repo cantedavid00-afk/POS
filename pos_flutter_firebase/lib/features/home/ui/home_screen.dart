@@ -262,9 +262,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _NavItem('receive_transfer', Icons.arrow_downward, 'Recibir'),
       ],
       if (employee.isAdmin) const _NavItem('settings', Icons.settings, 'Config'),
-       if (employee.isAdmin || employee.hasPermission('losses'))
-         const _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
-       if (employee.isAdmin) const _NavItem('backOffice', Icons.admin_panel_settings, 'Back Office'),
+        const _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
+        if (employee.isAdmin) const _NavItem('backOffice', Icons.admin_panel_settings, 'Back Office'),
     ];
   }
 }

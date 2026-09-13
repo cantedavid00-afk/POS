@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,7 +6,6 @@ import '../../../shared/models/inventory_movement.dart';
 import '../../../shared/models/product.dart';
 import '../../../shared/models/product_stock.dart';
 import '../../../shared/models/store.dart';
-import '../../../shared/providers/app_session_notifier.dart';
 import '../../../features/inventory/domain/inventory_repository.dart';
 import '../../../features/inventory/domain/stock_repository.dart';
 import '../../../features/products/domain/product_repository.dart';
@@ -32,10 +30,6 @@ class LossesScreen extends StatefulWidget {
 class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   int _selectedProductIndex = -1;
-  final _quantityController = TextEditingController();
-  final _reasonController = TextEditingController();
-  bool _isRegistering = false;
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -46,8 +40,6 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
   @override
   void dispose() {
     _tabController.dispose();
-    _quantityController.dispose();
-    _reasonController.dispose();
     super.dispose();
   }
 
@@ -88,220 +80,114 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
         final products = productsSnapshot.data ?? const <Product>[];
         final allProducts = products.where((p) => p.active).toList();
 
-        return Column(
-          children: [
-            if (allProducts.isEmpty)
-              const Expanded(child: Center(child: Text('No hay productos activos'))),
-            if (allProducts.isNotEmpty) ...[
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: allProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = allProducts[index];
-                    final isSelected = _selectedProductIndex == index;
-                    return Card(
-                      color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
-                      child: ListTile(
-                        title: Text(product.name),
-                        subtitle: Text('${product.categoryName ?? 'Sin categoría'} · ${product.sellBy == 'weight' ? '${product.stockQuantity.toStringAsFixed(2)} kg' : '${product.stockQuantity.toStringAsFixed(0)} u'}'),
-                        trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : const Icon(Icons.radio_button_unchecked),
-                        onTap: () {
-                          setState(() {
-                            _selectedProductIndex = index;
-                            _errorMessage = null;
-                          });
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (_selectedProductIndex >= 0 && _selectedProductIndex < allProducts.length)
-                _buildQuantityAndReasonSection(allProducts[_selectedProductIndex], lossService),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildQuantityAndReasonSection(Product product, LossRepository lossService) {
-    final stock = context.read<StockRepository>();
-    return StreamBuilder<ProductStock?>(
-      stream: stock.watchStockByStore(businessId: widget.businessId, storeId: widget.store.id)
-          .map((stockMap) => stockMap[product.id]),
-      builder: (context, stockSnapshot) {
-        final currentStock = stockSnapshot.data?.stockQuantity ?? 0.0;
-        final isWeightProduct = product.sellBy == 'weight';
-
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Stock actual: ${currentStock.toStringAsFixed(isWeightProduct ? 2 : 0)} ${isWeightProduct ? 'kg' : 'unidades'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _quantityController,
-                    keyboardType: TextInputType.numberWithOptions(decimal: isWeightProduct),
-                    decoration: InputDecoration(
-                      labelText: isWeightProduct ? 'Kilos perdidos' : 'Piezas perdidas',
-                      hintText: isWeightProduct ? 'Ej: 2.500' : 'Ej: 10',
-                      border: const OutlineInputBorder(),
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _errorMessage = null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _reasonController,
-                    decoration: const InputDecoration(
-                      labelText: 'Motivo',
-                      hintText: 'Vencido, dañado, excedente, etc.',
-                      border: OutlineInputBorder(),
+        return StreamBuilder<Map<String, ProductStock>>(
+          stream: stockRepo.watchStockByStore(businessId: widget.businessId, storeId: widget.store.id),
+          builder: (context, stockSnapshot) {
+            final stockMap = stockSnapshot.data ?? const <String, ProductStock>{};
+            return Column(
+              children: [
+                if (allProducts.isEmpty)
+                  const Expanded(child: Center(child: Text('No hay productos activos'))),
+                if (allProducts.isNotEmpty) ...[
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: allProducts.length,
+                      itemBuilder: (context, index) {
+                        final product = allProducts[index];
+                        final isSelected = _selectedProductIndex == index;
+                        final stockQty = stockMap[product.id]?.stockQuantity ?? 0.0;
+                        final isWeight = product.sellBy == 'weight';
+                        return Card(
+                          color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
+                          child: ListTile(
+                            title: Text(product.name),
+                            subtitle: Text(
+                                '${product.categoryName ?? 'Sin categoría'} · ${isWeight ? '${stockQty.toStringAsFixed(2)} kg' : '${stockQty.toStringAsFixed(0)} Pz'}'),
+                            trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : const Icon(Icons.radio_button_unchecked),
+                            onTap: () {
+                              setState(() {
+                                _selectedProductIndex = index;
+                              });
+                            },
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  if (_errorMessage != null)
-                    Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _isRegistering
-                          ? null
-                          : () => _registerLoss(product, currentStock, isWeightProduct, lossService),
-                      icon: _isRegistering
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.delete_forever),
-                      label: Text(_isRegistering ? 'Registrando...' : 'Registrar pérdida'),
+                  if (_selectedProductIndex >= 0 && _selectedProductIndex < allProducts.length)
+                    _LossFormCard(
+                      key: ValueKey(allProducts[_selectedProductIndex].id),
+                      product: allProducts[_selectedProductIndex],
+                      currentStock: stockMap[allProducts[_selectedProductIndex].id]?.stockQuantity ?? 0.0,
+                      businessId: widget.businessId,
+                      storeId: widget.store.id,
+                      employeeId: widget.employee.id,
+                      lossService: lossService,
+                      onRegistered: () {
+                        setState(() {
+                          _selectedProductIndex = -1;
+                        });
+                      },
                     ),
-                  ),
                 ],
-              ),
-            ),
-          ),
+              ],
+            );
+          },
         );
       },
     );
-  }
-
-  Future<void> _registerLoss(Product product, double currentStock, bool isWeightProduct, LossRepository lossService) async {
-    final input = double.tryParse(_quantityController.text.trim().replaceAll(',', '.'));
-    if (input == null || input <= 0) {
-      setState(() => _errorMessage = 'Ingresa una cantidad válida');
-      return;
-    }
-
-    if (isWeightProduct && input != input.floor() && input % 1 != 0) {
-      // Decimal kg is fine
-    } else if (!isWeightProduct && input % 1 != 0) {
-      setState(() => _errorMessage = 'Las piezas deben ser números enteros');
-      return;
-    }
-
-    if (input > currentStock) {
-      setState(() => _errorMessage = 'No hay suficiente stock. Disponible: $currentStock ${isWeightProduct ? 'kg' : 'unidades'}');
-      return;
-    }
-
-    final reason = _reasonController.text.trim();
-    if (reason.isEmpty) {
-      setState(() => _errorMessage = 'Ingresa un motivo');
-      return;
-    }
-
-    setState(() {
-      _isRegistering = true;
-      _errorMessage = null;
-    });
-
-    try {
-      await lossService.registerLoss(
-        businessId: widget.businessId,
-        storeId: widget.store.id,
-        product: product,
-        quantity: input,
-        reason: reason,
-        employeeId: widget.employee.id,
-      );
-
-      if (!mounted) return;
-      _quantityController.clear();
-      _reasonController.clear();
-      setState(() {
-        _selectedProductIndex = -1;
-        _isRegistering = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pérdida registrada: ${input.toStringAsFixed(isWeightProduct ? 2 : 0)} ${isWeightProduct ? 'kg' : 'unidades'} de ${product.name}')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isRegistering = false;
-        _errorMessage = e.toString();
-      });
-    }
   }
 
   Widget _buildHistoryTab() {
+    final inventoryRepo = context.read<InventoryRepository>();
+    final productRepo = context.read<ProductRepository>();
     return StreamBuilder<List<InventoryMovement>>(
-      stream: FirebaseFirestore.instance
-          .collection('businesses')
-          .doc(widget.businessId)
-          .collection('inventoryMovements')
-          .where('storeId', isEqualTo: widget.store.id)
-          .where('type', isEqualTo: 'loss')
-          .orderBy('createdAt', descending: true)
-          .snapshots()
-          .map((snapshot) => snapshot.docs.map((d) => InventoryMovement.fromMap(d.data(), d.id)).toList()),
+      stream: inventoryRepo.watchMovements(businessId: widget.businessId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
         final movements = snapshot.data ?? const <InventoryMovement>[];
-        final losses = movements.where((m) => m.type == 'loss').toList();
+        final losses = movements
+            .where((m) => m.type == 'loss' && m.storeId == widget.store.id)
+            .toList();
 
         if (losses.isEmpty) {
           return const Center(child: Text('No hay pérdidas registradas.'));
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: losses.length,
-          itemBuilder: (context, index) {
-            final movement = losses[index];
-            return Card(
-              child: ListTile(
-                leading: const Icon(Icons.delete_forever, color: Colors.orange),
-                title: Text(movement.productName),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Cantidad: ${movement.previousQuantity.toStringAsFixed(2)} → ${movement.newQuantity.toStringAsFixed(2)}'),
-                    Text('Motivo: ${movement.reason}'),
-                    Text('${_formatDate(movement.createdAt)}'),
-                  ],
-                ),
-                trailing: Text('-\${(movement.difference.abs()).toStringAsFixed(2)}'),
-              ),
+        return StreamBuilder<List<Product>>(
+          stream: productRepo.watchProducts(businessId: widget.businessId),
+          builder: (context, prodSnapshot) {
+            final sellByMap = {for (final p in prodSnapshot.data ?? const <Product>[]) p.id: p.sellBy};
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: losses.length,
+              itemBuilder: (context, index) {
+                final movement = losses[index];
+                final isWeight = sellByMap[movement.productId] == 'weight';
+                final unit = isWeight ? 'kg' : 'Pz';
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.delete_forever, color: Colors.orange),
+                    title: Text(movement.productName),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            'Cantidad: ${movement.previousQuantity.toStringAsFixed(isWeight ? 2 : 0)} → ${movement.newQuantity.toStringAsFixed(isWeight ? 2 : 0)} $unit'),
+                        Text('Motivo: ${movement.reason}'),
+                        Text(_formatDate(movement.createdAt)),
+                      ],
+                    ),
+                    trailing: Text('-${movement.difference.abs().toStringAsFixed(isWeight ? 2 : 0)} $unit'),
+                  ),
+                );
+              },
             );
           },
         );
@@ -312,5 +198,159 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
   String _formatDate(DateTime? date) {
     if (date == null) return 'Fecha pendiente';
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _LossFormCard extends StatefulWidget {
+  const _LossFormCard({
+    super.key,
+    required this.product,
+    required this.currentStock,
+    required this.businessId,
+    required this.storeId,
+    required this.employeeId,
+    required this.lossService,
+    required this.onRegistered,
+  });
+
+  final Product product;
+  final double currentStock;
+  final String businessId;
+  final String storeId;
+  final String employeeId;
+  final LossRepository lossService;
+  final VoidCallback onRegistered;
+
+  @override
+  State<_LossFormCard> createState() => _LossFormCardState();
+}
+
+class _LossFormCardState extends State<_LossFormCard> {
+  final _quantityController = TextEditingController();
+  final _reasonController = TextEditingController();
+  bool _isRegistering = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  bool get _isWeight => widget.product.sellBy == 'weight';
+
+  Future<void> _registerLoss() async {
+    final input = double.tryParse(_quantityController.text.trim().replaceAll(',', '.'));
+    if (input == null || input <= 0) {
+      setState(() => _errorMessage = 'Ingresa una cantidad válida');
+      return;
+    }
+    if (!_isWeight && input % 1 != 0) {
+      setState(() => _errorMessage = 'Las piezas deben ser números enteros');
+      return;
+    }
+    if (input > widget.currentStock) {
+      setState(() => _errorMessage =
+          'No hay suficiente stock. Disponible: ${widget.currentStock.toStringAsFixed(_isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'}');
+      return;
+    }
+    final reason = _reasonController.text.trim();
+    if (reason.isEmpty) {
+      setState(() => _errorMessage = 'Ingresa un motivo');
+      return;
+    }
+    setState(() {
+      _isRegistering = true;
+      _errorMessage = null;
+    });
+    try {
+      await widget.lossService.registerLoss(
+        businessId: widget.businessId,
+        storeId: widget.storeId,
+        product: widget.product,
+        quantity: input,
+        reason: reason,
+        employeeId: widget.employeeId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                'Pérdida registrada: ${input.toStringAsFixed(_isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'} de ${widget.product.name}')),
+      );
+      widget.onRegistered();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isRegistering = false;
+        _errorMessage = e.toString();
+      });
+      return;
+    }
+    if (mounted) {
+      setState(() => _isRegistering = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 0,
+        bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.product.name, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                'Stock actual: ${widget.currentStock.toStringAsFixed(_isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _quantityController,
+                keyboardType: TextInputType.numberWithOptions(decimal: _isWeight),
+                decoration: InputDecoration(
+                  labelText: _isWeight ? 'Kilos perdidos' : 'Piezas perdidas',
+                  hintText: _isWeight ? 'Ej: 2.500' : 'Ej: 10',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _reasonController,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo',
+                  hintText: 'Vencido, dañado, excedente, etc.',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_errorMessage != null) Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _isRegistering ? null : _registerLoss,
+                  icon: _isRegistering
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.delete_forever),
+                  label: Text(_isRegistering ? 'Registrando...' : 'Registrar pérdida'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

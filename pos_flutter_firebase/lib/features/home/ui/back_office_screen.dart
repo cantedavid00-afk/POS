@@ -702,6 +702,7 @@ class _InventoryTabState extends State<_InventoryTab> {
                     child: Text('Sin movimientos.'),
                   );
                 }
+                final sellByMap = {for (final p in products) p.id: p.sellBy};
                 return Column(
                   children: movements.take(20).map((movement) {
                     String subtitle = movement.typeLabel;
@@ -717,10 +718,15 @@ class _InventoryTabState extends State<_InventoryTab> {
                         subtitle = '$subtitle\nDe $from → Para $to';
                       }
                     }
+                    final isWeight = sellByMap[movement.productId] == 'weight';
+                    final unit = isWeight ? 'kg' : 'Pz';
+                    final qtyStr = movement.difference >= 0
+                        ? '+${_formatQuantity(movement.difference)} $unit'
+                        : '${_formatQuantity(movement.difference)} $unit';
                     return ListTile(
                       title: Text(movement.productName),
                       subtitle: Text(subtitle),
-                      trailing: Text(movement.difference >= 0 ? '+${_formatQuantity(movement.difference)}' : _formatQuantity(movement.difference)),
+                      trailing: Text(qtyStr),
                     );
                   }).toList(),
                 );
@@ -740,12 +746,15 @@ class _InventoryTabState extends State<_InventoryTab> {
                     child: Text('Sin pérdidas registradas.'),
                   );
                 }
+                final sellByMap = {for (final p in products) p.id: p.sellBy};
                 return Column(
                   children: losses.take(20).map((movement) {
+                    final isWeight = sellByMap[movement.productId] == 'weight';
+                    final unit = isWeight ? 'kg' : 'Pz';
                     return ListTile(
                       title: Text(movement.productName),
                       subtitle: Text('${movement.typeLabel} · ${movement.reason} · ${_formatDate(movement.createdAt)}'),
-                      trailing: Text('-${_formatQuantity(movement.difference.abs())}'),
+                      trailing: Text('-${_formatQuantity(movement.difference.abs())} $unit'),
                     );
                   }).toList(),
                 );

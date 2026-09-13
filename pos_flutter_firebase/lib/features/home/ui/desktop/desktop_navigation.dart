@@ -127,10 +127,9 @@ class DesktopNavigation extends StatelessWidget {
         _NavItem('butcher', Icons.restaurant_menu, 'Destazar'),
       if (employee.isAdmin || employee.hasPermission('employees'))
         _NavItem('employees', Icons.people, 'Empleados'),
-       if (employee.isAdmin || employee.hasPermission('losses'))
-         _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
-       if (employee.isAdmin)
-         _NavItem('settings', Icons.settings, 'Configuracion'),
+        _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
+        if (employee.isAdmin)
+          _NavItem('settings', Icons.settings, 'Configuracion'),
       if (employee.isAdmin)
         _NavItem('backoffice', Icons.admin_panel_settings, 'BackOffice'),
     ];

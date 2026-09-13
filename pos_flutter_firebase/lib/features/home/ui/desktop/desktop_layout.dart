@@ -193,9 +193,8 @@ class _DesktopContentState extends State<_DesktopContent> {
         const _NavItem('butcher', Icons.restaurant_menu, 'Destazar'),
       if (employee.isAdmin || employee.hasPermission('employees'))
         const _NavItem('employees', Icons.people, 'Empleados'),
-       if (employee.isAdmin || employee.hasPermission('losses'))
-         const _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
-       if (employee.isAdmin) const _NavItem('settings', Icons.settings, 'Configuracion'),
+        const _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
+        if (employee.isAdmin) const _NavItem('settings', Icons.settings, 'Configuracion'),
       if (employee.isAdmin) const _NavItem('backoffice', Icons.admin_panel_settings, 'Back Office'),
     ];
   }
