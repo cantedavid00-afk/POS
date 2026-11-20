@@ -3,6 +3,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../../shared/models/sale.dart';
 import '../../../shared/models/store.dart';
+import '../../../shared/extensions/date_time_x.dart';
+import '../../../shared/extensions/phone_x.dart';
+import '../../../shared/extensions/num_x.dart';
 import '../domain/pdf_repository.dart';
 
 class PdfService implements PdfRepository {
@@ -51,7 +54,7 @@ class PdfService implements PdfRepository {
         if (store.address.isNotEmpty)
           pw.Center(child: pw.Text(store.address, style: pw.TextStyle(fontSize: 8))),
         if (store.phone.isNotEmpty)
-          pw.Center(child: pw.Text('Tel: ${store.phone}', style: pw.TextStyle(fontSize: 8))),
+          pw.Center(child: pw.Text('Tel: ${store.phone.maskPhoneNumber}', style: pw.TextStyle(fontSize: 8))),
       ],
     );
   }
@@ -103,13 +106,13 @@ class PdfService implements PdfRepository {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Expanded(child: pw.Text('${_formatQty(quantity)} x $name', style: pw.TextStyle(fontSize: 8))),
-                  pw.Text('\$${subtotal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 8)),
+                  pw.Text('\$${subtotal.humanizedCount(decimalDigits: 2)}', style: pw.TextStyle(fontSize: 8)),
                 ],
               ),
               if (unitPrice > 0 && quantity != 0)
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(left: 8),
-                  child: pw.Text('\$${unitPrice.toStringAsFixed(2)} c/u', style: pw.TextStyle(fontSize: 7, color: PdfColors.grey)),
+                  child: pw.Text('\$${unitPrice.humanizedCount(decimalDigits: 2)} c/u', style: pw.TextStyle(fontSize: 7, color: PdfColors.grey)),
                 ),
               ...modifiers.map((m) {
                 final mod = m as Map<String, dynamic>;
@@ -118,7 +121,7 @@ class PdfService implements PdfRepository {
                 return pw.Padding(
                   padding: const pw.EdgeInsets.only(left: 8),
                   child: pw.Text(
-                    modPrice > 0 ? '$modName +\$${modPrice.toStringAsFixed(2)}' : modName,
+                    modPrice > 0 ? '$modName +\$${modPrice.humanizedCount(decimalDigits: 2)}' : modName,
                     style: pw.TextStyle(fontSize: 7, color: PdfColors.grey),
                   ),
                 );
@@ -126,7 +129,7 @@ class PdfService implements PdfRepository {
               if (discount > 0)
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(left: 8),
-                  child: pw.Text('Descuento: -\$${discount.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 7, color: PdfColors.orange)),
+                  child: pw.Text('Descuento: -\$${discount.humanizedCount(decimalDigits: 2)}', style: pw.TextStyle(fontSize: 7, color: PdfColors.orange)),
                 ),
             ],
           );
@@ -139,14 +142,14 @@ class PdfService implements PdfRepository {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        _row('Subtotal', '\$${sale.subtotal.toStringAsFixed(2)}'),
+        _row('Subtotal', '\$${sale.subtotal.humanizedCount(decimalDigits: 2)}'),
         if (sale.discountTotal > 0)
-          _row('Descuento', '-\$${sale.discountTotal.toStringAsFixed(2)}'),
+          _row('Descuento', '-\$${sale.discountTotal.humanizedCount(decimalDigits: 2)}'),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text('Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-            pw.Text('\$${sale.total.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+            pw.Text('\$${sale.total.humanizedCount(decimalDigits: 2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
           ],
         ),
       ],
@@ -190,10 +193,7 @@ class PdfService implements PdfRepository {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'N/A';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
+  String _formatDate(DateTime? date) => date.formattedDateTime('es');
 
   String _formatQty(double qty) {
     return qty == qty.roundToDouble() ? qty.toInt().toString() : qty.toStringAsFixed(3);

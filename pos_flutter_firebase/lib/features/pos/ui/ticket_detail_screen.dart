@@ -5,6 +5,9 @@ import '../../../shared/models/cart_item.dart';
 import '../../../shared/models/sale.dart';
 import '../../../shared/models/store.dart';
 import '../../../features/sales/data/pdf_service.dart';
+import '../../../shared/extensions/date_time_x.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 
 class TicketDetailScreen extends StatelessWidget {
   const TicketDetailScreen({
@@ -33,7 +36,9 @@ class TicketDetailScreen extends StatelessWidget {
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16).copyWith(
+            bottom: BottomPadding.of(context, minimum: 16),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Card(
@@ -52,20 +57,20 @@ class TicketDetailScreen extends StatelessWidget {
                     const Divider(height: 28),
                     _row('Folio', sale.folio),
                     _row('Estado', _statusLabel(sale)),
-                    _row('Fecha', _formatDate(sale.createdAt ?? sale.clientCreatedAt)),
+                    _row('Fecha', (sale.createdAt ?? sale.clientCreatedAt).formattedDateTime('es')),
                     _row('Pago', _paymentLabel(sale.paymentMethod)),
                     if (sale.originalSaleId != null) _row('Ticket original', sale.originalSaleId!),
-                    if (sale.cashReceived != null) _row('Recibido', '\$${sale.cashReceived!.toStringAsFixed(2)}'),
-                    if (sale.changeDue != null) _row('Cambio', '\$${sale.changeDue!.toStringAsFixed(2)}'),
+                    if (sale.cashReceived != null) _row('Recibido', '\$${sale.cashReceived!.humanizedCount(decimalDigits: 2)}'),
+                    if (sale.changeDue != null) _row('Cambio', '\$${sale.changeDue!.humanizedCount(decimalDigits: 2)}'),
                     if (sale.cancelReason != null) _row('Motivo', sale.cancelReason!),
                     const Divider(height: 28),
                     ...sale.items.map(_itemRow),
                     const Divider(height: 28),
-                    _row('Subtotal', '\$${sale.subtotal.toStringAsFixed(2)}'),
-                    if (sale.discountTotal > 0) _row('Descuentos', '-\$${sale.discountTotal.toStringAsFixed(2)}'),
+                    _row('Subtotal', '\$${sale.subtotal.humanizedCount(decimalDigits: 2)}'),
+                    if (sale.discountTotal > 0) _row('Descuentos', '-\$${sale.discountTotal.humanizedCount(decimalDigits: 2)}'),
                     _row(
                       sale.isRefund ? 'Total devuelto' : 'Total',
-                      '\$${sale.total.toStringAsFixed(2)}',
+                      '\$${sale.total.humanizedCount(decimalDigits: 2)}',
                       bold: true,
                     ),
                     if (sale.returnedItems.isNotEmpty) ...[
@@ -100,7 +105,7 @@ class TicketDetailScreen extends StatelessWidget {
     final unitPrice = (item['unitPrice'] as num? ?? 0).toDouble();
     final subtotal = (item['subtotal'] as num? ?? 0).toDouble();
     final modifiers = parseModifiers(item['modifiers']);
-    final modifierLabels = modifiers.map((m) => m.price == 0 ? m.name : '${m.name} +\$${m.price.toStringAsFixed(2)}').toList();
+    final modifierLabels = modifiers.map((m) => m.price == 0 ? m.name : '${m.name} +\$${m.price.humanizedCount(decimalDigits: 2)}').toList();
     final discount = (item['discount'] as num? ?? 0).toDouble();
 
     return Padding(
@@ -113,13 +118,13 @@ class TicketDetailScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text('${_formatQuantity(quantity)} x \$${unitPrice.toStringAsFixed(2)}'),
+                Text('${_formatQuantity(quantity)} x \$${unitPrice.humanizedCount(decimalDigits: 2)}'),
                 if (modifierLabels.isNotEmpty) Text('+ ${modifierLabels.join(', ')}'),
-                if (discount > 0) Text('Descuento: \$${discount.toStringAsFixed(2)}'),
+                if (discount > 0) Text('Descuento: \$${discount.humanizedCount(decimalDigits: 2)}'),
               ],
             ),
           ),
-          Text('\$${subtotal.toStringAsFixed(2)}'),
+          Text('\$${subtotal.humanizedCount(decimalDigits: 2)}'),
         ],
       ),
     );
@@ -148,12 +153,6 @@ class TicketDetailScreen extends StatelessWidget {
   }
 
   String _paymentLabel(String value) => value == 'card' ? 'Tarjeta' : 'Efectivo';
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Fecha pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} '
-        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 
   String _formatQuantity(double value) {
     if (value % 1 == 0) return value.toStringAsFixed(0);

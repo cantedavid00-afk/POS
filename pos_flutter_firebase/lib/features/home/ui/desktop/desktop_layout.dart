@@ -5,22 +5,12 @@ import '../../../../shared/models/store.dart';
 import '../../../../shared/models/app_session.dart';
 import '../../../../shared/providers/app_session_notifier.dart';
 import '../../../auth/domain/auth_repository.dart';
-import '../back_office_screen.dart';
-import 'desktop_navigation.dart';
-import 'dashboard_screen.dart';
-import 'reports_screen.dart';
-import 'inventory_view_screen.dart';
-import 'employees_view_screen.dart';
-import 'shifts_view_screen.dart';
-import 'business_config_screen.dart';
-import 'backup_export_screen.dart';
-import 'transfers_view_screen.dart';
-import '../../../poultry/ui/receive_chicken_screen.dart';
-import '../../../butcher/ui/butcher_screen.dart';
-import '../../../products/ui/products_screen.dart';
-import '../../../business/ui/business_setup_screen.dart';
+import 'admin/admin_filters.dart';
+import 'admin/admin_shell.dart';
+import '../../../auth/ui/login_screen.dart';
 import '../../../employees/ui/employee_pin_screen.dart';
-import '../../../losses/ui/losses_screen.dart';
+import '../../../../shared/extensions/phone_x.dart';
+import '../../../../shared/extensions/string_x.dart';
 
 
 
@@ -37,9 +27,38 @@ class DesktopLayout extends StatelessWidget {
 
         final session = sessionNotifier.session;
         if (session == null || session.stores.isEmpty) {
-          return BusinessSetupScreen(
-            onCreated: () => sessionNotifier.refreshSession(),
-            authRepository: context.read<AuthRepository>(),
+          // Sin negocio vinculado: solo login con correo y contraseña.
+          // Si la carga falla, se muestra el error con reintento (antes era silencio).
+          final loadError = sessionNotifier.error;
+          return Column(
+            children: [
+              Expanded(
+                child: LoginScreen(
+                  onAuthenticated: () => sessionNotifier.refreshSession(),
+                ),
+              ),
+              if (loadError != null)
+                Container(
+                  width: double.infinity,
+                  color: Colors.red.shade700,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          loadError,
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => sessionNotifier.refreshSession(),
+                        child: const Text('Reintentar',
+                            style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           );
         }
 
@@ -48,7 +67,7 @@ class DesktopLayout extends StatelessWidget {
             businessName: session.business.name,
             stores: session.stores,
             onSelected: (store) => sessionNotifier.selectStore(store),
-            onSignOut: () {},
+            onSignOut: () => context.read<AuthRepository>().signOut(),
           );
         }
 
@@ -62,149 +81,54 @@ class DesktopLayout extends StatelessWidget {
             employees: employeesForStore,
             onUnlocked: (employee) => sessionNotifier.selectEmployee(employee),
             onSelectStore: (store) => sessionNotifier.selectStore(store),
-            onSignOut: () {},
+            onSignOut: () => context.read<AuthRepository>().signOut(),
           );
         }
 
-        return _DesktopContent(session: session, selectedStore: selectedStore, employee: sessionNotifier.resolvedEmployee);
+        // .exe exclusivo administrador: shell unificado con sucursal global.
+        // AdminScope persiste al cambiar de sección (Dashboard/Recibos/etc).
+        return ChangeNotifierProvider(
+          create: (_) => AdminScope(initialStoreId: null),
+          child: _AdminRoot(
+            session: session,
+            initialStore: selectedStore,
+            employee: sessionNotifier.resolvedEmployee,
+          ),
+        );
       },
     );
   }
 }
 
-class _DesktopContent extends StatefulWidget {
+/// Sincroniza la sucursal de la sesión con el alcance global del admin
+/// y muestra el shell. Si la sesión cambia de sucursal fuera del TopBar
+/// (pantalla de selección), se refleja una sola vez.
+class _AdminRoot extends StatefulWidget {
+  const _AdminRoot({
+    required this.session,
+    required this.initialStore,
+    required this.employee,
+  });
+
   final AppSession session;
-  final Store selectedStore;
+  final Store initialStore;
   final Employee employee;
 
-  const _DesktopContent({required this.session, required this.selectedStore, required this.employee});
-
   @override
-  State<_DesktopContent> createState() => _DesktopContentState();
+  State<_AdminRoot> createState() => _AdminRootState();
 }
 
-class _DesktopContentState extends State<_DesktopContent> {
-  int _selectedIndex = 0;
-
+class _AdminRootState extends State<_AdminRoot> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: [
-          DesktopNavigation(
-            selectedIndex: _selectedIndex,
-            onSelected: (index) => setState(() => _selectedIndex = index),
-            activeEmployee: widget.employee,
-            selectedStore: widget.selectedStore,
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: _buildPage(),
-            ),
-          ),
-        ],
-      ),
+    return AdminShell(
+      businessId: widget.session.business.id,
+      businessName: widget.session.business.name,
+      stores: widget.session.stores,
+      employee: widget.employee,
+      onSignOut: () => context.read<AuthRepository>().signOut(),
     );
   }
-
-  Widget _buildPage() {
-    final employee = widget.employee;
-    switch (_navItems(employee)[_selectedIndex].key) {
-      case 'dashboard':
-        return const DashboardScreen();
-      case 'sales':
-        return SalesReportScreen(
-          businessId: widget.session.business.id,
-          businessName: widget.session.business.name,
-          store: widget.selectedStore,
-          employee: employee,
-        );
-      case 'products':
-        return ProductsScreen(businessId: widget.session.business.id, storeId: widget.selectedStore.id);
-      case 'inventory':
-        return InventoryViewScreen(
-          businessId: widget.session.business.id,
-          selectedStoreId: widget.selectedStore.id,
-          currentEmployee: employee,
-          stores: widget.session.stores,
-        );
-      case 'shifts':
-        return ShiftsViewScreen(
-          businessId: widget.session.business.id,
-          store: widget.selectedStore,
-          employee: employee,
-        );
-      case 'poultry':
-        return ReceiveChickenScreen(
-          businessId: widget.session.business.id,
-          storeId: widget.selectedStore.id,
-          employee: employee,
-        );
-      case 'butcher':
-        return ButcherScreen(
-          businessId: widget.session.business.id,
-          store: widget.selectedStore,
-          employee: employee,
-        );
-      case 'transfers':
-        return const TransfersViewScreen();
-      case 'employees':
-        return EmployeesViewScreen(
-          businessId: widget.session.business.id,
-          stores: widget.session.stores,
-        );
-       case 'losses':
-         return LossesScreen(
-           businessId: widget.session.business.id,
-           store: widget.selectedStore,
-           employee: employee,
-         );
-       case 'settings':
-         return BusinessConfigScreen(businessId: widget.session.business.id);
-      case 'backoffice':
-        return BackOfficeScreen(
-          businessId: widget.session.business.id,
-          stores: widget.session.stores,
-          currentEmployee: employee,
-        );
-      default:
-        return const DashboardScreen();
-    }
-  }
-
-  List<_NavItem> _navItems(Employee employee) {
-    return [
-      const _NavItem('dashboard', Icons.dashboard, 'Dashboard'),
-      if (employee.isManager || employee.isAdmin || employee.hasPermission('receipts'))
-        const _NavItem('sales', Icons.receipt_long, 'Ventas'),
-      if (employee.isManager || employee.isAdmin || employee.hasPermission('products'))
-        const _NavItem('products', Icons.inventory_2, 'Productos'),
-      if (employee.isManager || employee.isAdmin || employee.hasPermission('inventory'))
-        const _NavItem('inventory', Icons.warehouse, 'Inventario'),
-      if (employee.isManager || employee.isAdmin || employee.hasPermission('shift'))
-        const _NavItem('shifts', Icons.access_time, 'Turnos'),
-      if (employee.isAdmin || employee.hasPermission('transfers'))
-        const _NavItem('transfers', Icons.swap_horiz, 'Traspasos'),
-      if (employee.isAdmin || employee.hasPermission('poultry'))
-        const _NavItem('poultry', Icons.egg_alt, 'Polleria'),
-      if (employee.isAdmin || employee.hasPermission('butcher'))
-        const _NavItem('butcher', Icons.restaurant_menu, 'Destazar'),
-      if (employee.isAdmin || employee.hasPermission('employees'))
-        const _NavItem('employees', Icons.people, 'Empleados'),
-        const _NavItem('losses', Icons.delete_forever, 'Pérdidas'),
-        if (employee.isAdmin) const _NavItem('settings', Icons.settings, 'Configuracion'),
-      if (employee.isAdmin) const _NavItem('backoffice', Icons.admin_panel_settings, 'Back Office'),
-    ];
-  }
-}
-
-class _NavItem {
-  const _NavItem(this.key, this.icon, this.label);
-  final String key;
-  final IconData icon;
-  final String label;
 }
 
 class _StoreSelectionScreen extends StatelessWidget {
@@ -239,8 +163,8 @@ class _StoreSelectionScreen extends StatelessWidget {
                   (store) => Card(
                     child: ListTile(
                       leading: const Icon(Icons.storefront),
-                      title: Text(store.name),
-                      subtitle: Text([if (store.address.isNotEmpty) store.address, if (store.phone.isNotEmpty) store.phone].join(' · ')),
+                      title: Text(store.name.orPlaceholder()),
+                      subtitle: Text([if (store.address.isNotEmpty) store.address, if (store.phone.isNotEmpty) store.phone.maskPhoneNumber].join(' · ')),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => onSelected(store),
                     ),

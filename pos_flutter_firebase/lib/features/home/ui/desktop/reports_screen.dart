@@ -7,6 +7,9 @@ import '../../../../shared/models/store.dart';
 import '../../../../shared/models/sale.dart';
 import '../../../../shared/providers/app_session_notifier.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/extensions/num_x.dart';
+import '../../../../shared/extensions/string_x.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
 
 class SalesReportScreen extends StatelessWidget {
   final String businessId;
@@ -54,25 +57,27 @@ class SalesReportScreen extends StatelessWidget {
           }).toList();
 
           return ListView(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(20).copyWith(
+              bottom: BottomPadding.of(context, minimum: 20),
+            ),
             children: [
               _MetricRow(
                 label: 'Ventas totales',
-                value: '\$${filtered.where((s) => !s.isRefund).fold<double>(0.0, (total, s) => total + s.total).toStringAsFixed(2)}',
+                value: '\$${filtered.where((s) => !s.isRefund).fold<double>(0.0, (total, s) => total + s.total).humanizedCount(decimalDigits: 2)}',
                 icon: Icons.trending_up,
                 color: AppColors.success,
               ),
               const SizedBox(height: 12),
               _MetricRow(
                 label: 'Devoluciones',
-                value: '\$${filtered.where((s) => s.isRefund).fold<double>(0.0, (total, s) => total + s.total).toStringAsFixed(2)}',
+                value: '\$${filtered.where((s) => s.isRefund).fold<double>(0.0, (total, s) => total + s.total).humanizedCount(decimalDigits: 2)}',
                 icon: Icons.undo,
                 color: AppColors.danger,
               ),
               const SizedBox(height: 12),
               _MetricRow(
                 label: 'Ticket promedio',
-                value: '\$${(filtered.where((s) => !s.isRefund).isEmpty ? 0.0 : filtered.where((s) => !s.isRefund).fold<double>(0.0, (total, s) => total + s.total) / filtered.where((s) => !s.isRefund).length).toStringAsFixed(2)}',
+                value: '\$${(filtered.where((s) => !s.isRefund).isEmpty ? 0.0 : filtered.where((s) => !s.isRefund).fold<double>(0.0, (total, s) => total + s.total) / filtered.where((s) => !s.isRefund).length).humanizedCount(decimalDigits: 2)}',
                 icon: Icons.receipt,
                 color: AppColors.accent,
               ),
@@ -101,8 +106,8 @@ class SalesReportScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       ..._getTopProducts(filtered).take(10).map(
                         (product) => ListTile(
-                          title: Text(product.key),
-                          trailing: Text('\$${product.value.toStringAsFixed(2)}'),
+                          title: Text(product.key.orPlaceholder()),
+                          trailing: Text('\$${product.value.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
                         ),
                       ),
                     ],
@@ -115,9 +120,9 @@ class SalesReportScreen extends StatelessWidget {
               ...filtered.take(20).map(
                 (sale) => Card(
                   child: ListTile(
-                    title: Text(sale.folio),
+                    title: Text(sale.folio.orPlaceholder()),
                     subtitle: Text('${sale.items.length} art\u00edculos · ${sale.paymentMethod == 'cash' ? 'Efectivo' : 'Tarjeta'}'),
-                    trailing: Text('\$${sale.total.toStringAsFixed(2)}'),
+                    trailing: Text('\$${sale.total.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
                   ),
                 ),
               ),
@@ -162,7 +167,7 @@ class SalesReportScreen extends StatelessWidget {
           return PieChartSectionData(
             value: entry.value.value,
             color: colors[entry.key % colors.length],
-            title: '${entry.value.key}\n${entry.value.value.toStringAsFixed(0)}',
+            title: '${entry.value.key}\n${entry.value.value.humanizedCount(decimalDigits: 0)}',
           );
         }).toList(),
       ),
@@ -193,7 +198,7 @@ class _MetricRow extends StatelessWidget {
           decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
           child: Icon(icon, color: color, size: 24),
         ),
-        title: Text(value, style: Theme.of(context).textTheme.titleMedium),
+        title: Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontFeatures: [FontFeature.tabularFigures()])),
         subtitle: Text(label),
       ),
     );

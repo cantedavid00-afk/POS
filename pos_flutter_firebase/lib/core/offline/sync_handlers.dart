@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:meta/meta.dart';
 
 import 'package:pos_flutter_firebase/features/butcher/data/butcher_stock_service.dart';
+import 'package:pos_flutter_firebase/shared/extensions/num_x.dart';
 
 import 'sync_service.dart';
 
@@ -1609,8 +1610,8 @@ Future<void> _handleButchering(Map<String, dynamic> data) async {
 
     if (currentWholeStock < exactWeightKg) {
       throw StateError(
-        'Stock insuficiente de pollo entero: disponible ${currentWholeStock.toStringAsFixed(2)} kg, '
-        'requerido ${exactWeightKg.toStringAsFixed(2)} kg',
+        'Stock insuficiente de pollo entero: disponible ${currentWholeStock.humanizedCount(decimalDigits: 2)} kg, '
+        'requerido ${exactWeightKg.humanizedCount(decimalDigits: 2)} kg',
       );
     }
     if (currentChickenCount < chickenCount) {

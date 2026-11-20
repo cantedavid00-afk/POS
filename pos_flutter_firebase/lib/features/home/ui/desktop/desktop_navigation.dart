@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../shared/models/employee.dart';
 import '../../../../shared/models/store.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
 
 
 
@@ -39,7 +40,9 @@ class DesktopNavigation extends StatelessWidget {
             Expanded(
               child: ListView.builder(
                 itemCount: items.length,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 8).copyWith(
+                  bottom: BottomPadding.of(context, minimum: 8),
+                ),
                 itemBuilder: (context, index) {
                   final item = items[index];
                   final isSelected = selectedIndex == index;

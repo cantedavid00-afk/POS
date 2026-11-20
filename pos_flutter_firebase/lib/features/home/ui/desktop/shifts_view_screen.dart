@@ -4,6 +4,10 @@ import '../../../../shared/models/employee.dart';
 import '../../../../shared/models/shift.dart';
 import '../../../../shared/models/store.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/extensions/num_x.dart';
+import '../../../../shared/extensions/date_time_x.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
+import '../../../../shared/widgets/spring_sheet.dart';
 
 class ShiftsViewScreen extends StatefulWidget {
   final String businessId;
@@ -52,7 +56,9 @@ class _ShiftsViewScreenState extends State<ShiftsViewScreen> {
                   return const Center(child: Text('No hay turnos registrados.'));
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16).copyWith(
+                    bottom: BottomPadding.of(context, minimum: 16),
+                  ),
                   itemCount: shifts.length,
                   itemBuilder: (context, index) {
                     final shift = shifts[index];
@@ -132,15 +138,15 @@ class _ShiftCard extends StatelessWidget {
         ),
         title: Text(shift.isOpen ? 'Turno abierto' : 'Turno cerrado'),
         subtitle: Text(
-          '${shift.openedAt != null ? _formatDate(shift.openedAt) : ''}${shift.isOpen ? '' : ' - ${_formatDate(shift.closedAt)}'}',
+          '${shift.openedAt?.formattedDateTime('es') ?? ''}${shift.isOpen ? '' : ' - ${shift.closedAt.formattedDateTime('es')}'}',
         ),
         trailing: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text('\$${shift.totalSales.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
+            Text('\$${shift.totalSales.humanizedCount(decimalDigits: 2)}', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text('Efectivo: \$${shift.cashSales.toStringAsFixed(2)}', style: Theme.of(context).textTheme.bodySmall),
+            Text('Efectivo: \$${shift.cashSales.humanizedCount(decimalDigits: 2)}', style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
         onTap: () => _showShiftDetail(context, shift),
@@ -149,9 +155,8 @@ class _ShiftCard extends StatelessWidget {
   }
 
   void _showShiftDetail(BuildContext context, Shift shift) {
-    showModalBottomSheet(
+    showSpringBottomSheet(
       context: context,
-      isScrollControlled: true,
       builder: (context) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: Container(
@@ -162,19 +167,19 @@ class _ShiftCard extends StatelessWidget {
             children: [
               Text('Detalle del turno', style: Theme.of(context).textTheme.titleLarge),
               const Divider(),
-              _detailRow('Fondo inicial', '\$${(shift.openingCash).toStringAsFixed(2)}'),
-              _detailRow('Ventas totales', '\$${(shift.totalSales).toStringAsFixed(2)}'),
-              _detailRow('Ventas en efectivo', '\$${(shift.cashSales).toStringAsFixed(2)}'),
-              _detailRow('Ventas con tarjeta', '\$${(shift.cardSales).toStringAsFixed(2)}'),
-              _detailRow('Reembolsos', '-\$${(shift.cashRefunds).toStringAsFixed(2)}'),
-              _detailRow('Depositos', '\$${(shift.depositsTotal).toStringAsFixed(2)}'),
-              _detailRow('Pagos', '-\$${(shift.payoutsTotal).toStringAsFixed(2)}'),
+              _detailRow('Fondo inicial', '\$${(shift.openingCash).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Ventas totales', '\$${(shift.totalSales).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Ventas en efectivo', '\$${(shift.cashSales).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Ventas con tarjeta', '\$${(shift.cardSales).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Reembolsos', '-\$${(shift.cashRefunds).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Depositos', '\$${(shift.depositsTotal).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Pagos', '-\$${(shift.payoutsTotal).humanizedCount(decimalDigits: 2)}'),
               const Divider(),
-              _detailRow('Efectivo esperado', '\$${(shift.expectedCash).toStringAsFixed(2)}'),
-              _detailRow('Efectivo contado', '\$${(shift.closingCash ?? 0).toStringAsFixed(2)}'),
+              _detailRow('Efectivo esperado', '\$${(shift.expectedCash).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Efectivo contado', '\$${(shift.closingCash ?? 0).humanizedCount(decimalDigits: 2)}'),
               _detailRow(
                 'Diferencia',
-                '\$${(shift.cashDifference).toStringAsFixed(2)}',
+                '\$${(shift.cashDifference).humanizedCount(decimalDigits: 2)}',
                 valueStyle: TextStyle(
                   color: shift.cashDifference >= 0 ? AppColors.success : AppColors.danger,
                   fontWeight: FontWeight.bold,
@@ -183,8 +188,8 @@ class _ShiftCard extends StatelessWidget {
               if (shift.chickensReceived > 0 || shift.chickensButchered > 0) ...[
                 const Divider(),
                 Text('Inventario', style: Theme.of(context).textTheme.titleMedium),
-                if (shift.chickensReceived > 0) _detailRow('Pollos recibidos', '${shift.chickensReceived} (${shift.kgReceived.toStringAsFixed(2)} kg)'),
-                if (shift.chickensButchered > 0) _detailRow('Pollos destazados', '${shift.chickensButchered} (${shift.kgButchered.toStringAsFixed(2)} kg)'),
+                if (shift.chickensReceived > 0) _detailRow('Pollos recibidos', '${shift.chickensReceived.humanizedCount()} (${shift.kgReceived.humanizedCount(decimalDigits: 2)} kg)'),
+                if (shift.chickensButchered > 0) _detailRow('Pollos destazados', '${shift.chickensButchered.humanizedCount()} (${shift.kgButchered.humanizedCount(decimalDigits: 2)} kg)'),
               ],
               const SizedBox(height: 16),
             ],
@@ -194,11 +199,6 @@ class _ShiftCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
   Widget _detailRow(String label, String value, {TextStyle? valueStyle}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -206,7 +206,7 @@ class _ShiftCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: valueStyle),
+          Text(value, style: (valueStyle ?? const TextStyle()).copyWith(fontFeatures: [FontFeature.tabularFigures()])),
         ],
       ),
     );

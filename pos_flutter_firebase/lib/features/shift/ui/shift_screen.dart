@@ -8,6 +8,10 @@ import '../../../shared/models/shift.dart';
 import '../../../shared/models/store.dart';
 import '../../../features/sales/domain/sale_repository.dart';
 import '../../../features/shift/domain/shift_repository.dart';
+import '../../../shared/extensions/date_time_x.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 
 class ShiftScreen extends StatelessWidget {
   const ShiftScreen({
@@ -61,7 +65,9 @@ class ShiftScreen extends StatelessWidget {
                   final closeCount = closedShifts.length;
 
                   return ListView(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(16).copyWith(
+                      bottom: BottomPadding.of(context, minimum: 16),
+                    ),
                     children: [
                       _sectionCard(
                         context,
@@ -69,7 +75,7 @@ class ShiftScreen extends StatelessWidget {
                         children: [
                           _infoRow('Numero de cierres de caja', closeCount.toString()),
                           _infoRow('Abierto por', employee.name),
-                          _infoRow('Fecha de apertura', _formatDate(shift.openedAt)),
+                          _infoRow('Fecha de apertura', shift.openedAt.formattedDateTime('es')),
                         ],
                       ),
                   _sectionCard(
@@ -86,7 +92,7 @@ class ShiftScreen extends StatelessWidget {
                       if (summary.cashShortage > 0) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'Falto efectivo para cubrir devoluciones: \$${summary.cashShortage.toStringAsFixed(2)}',
+                          'Falto efectivo para cubrir devoluciones: \$${summary.cashShortage.humanizedCount(decimalDigits: 2)}',
                           style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700),
                         ),
                       ],
@@ -133,7 +139,7 @@ class ShiftScreen extends StatelessWidget {
                             dense: true,
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(movement['type'] == 'deposit' ? Icons.arrow_downward : Icons.arrow_upward),
-                            title: Text('$type · \$${amount.toStringAsFixed(2)}'),
+                            title: Text('$type · \$${amount.humanizedCount(decimalDigits: 2)}'),
                             subtitle: Text(comment.isEmpty ? 'Sin comentario' : comment),
                           );
                         }),
@@ -158,10 +164,10 @@ class ShiftScreen extends StatelessWidget {
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(diff >= 0 ? Icons.check_circle : Icons.warning,
                                 color: diff >= 0 ? Colors.green : Colors.orange),
-                            title: Text(_formatDate(closedShift.openedAt)),
-                            subtitle: Text('Ventas: \$${closedShift.totalSales.toStringAsFixed(2)}'),
+                            title: Text(closedShift.openedAt.formattedDateTime('es')),
+                            subtitle: Text('Ventas: \$${closedShift.totalSales.humanizedCount(decimalDigits: 2)}'),
                             trailing: Text(
-                              diff == 0 ? 'Cuadrado' : '${diff >= 0 ? '+' : ''}\$${diff.toStringAsFixed(2)}',
+                              diff == 0 ? 'Cuadrado' : '${diff >= 0 ? '+' : ''}\$${diff.humanizedCount(decimalDigits: 2)}',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: diff == 0 ? Colors.green : (diff > 0 ? Colors.green : Colors.red),
@@ -206,6 +212,7 @@ class ShiftScreen extends StatelessWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
+      HapticsHelper.error();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
@@ -232,9 +239,11 @@ class ShiftScreen extends StatelessWidget {
     try {
       await shiftService.closeShift(businessId: businessId, shift: shift, closingCash: closingCash);
       if (!context.mounted) return;
+      HapticsHelper.success();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Turno cerrado')));
     } catch (e) {
       if (!context.mounted) return;
+      HapticsHelper.error();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
@@ -244,7 +253,7 @@ class ShiftScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Turno - ${_formatDate(closedShift.openedAt)}'),
+        title: Text('Turno - ${closedShift.openedAt.formattedDateTime('es')}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -269,12 +278,12 @@ class ShiftScreen extends StatelessWidget {
                 if (closedShift.chickensReceived > 0)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text('Pollos recibidos: ${closedShift.chickensReceived} (${closedShift.kgReceived.toStringAsFixed(2)} kg)'),
+                    child: Text('Pollos recibidos: ${closedShift.chickensReceived.humanizedCount()} (${closedShift.kgReceived.humanizedCount(decimalDigits: 2)} kg)'),
                   ),
                 if (closedShift.chickensButchered > 0)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text('Pollos destazados: ${closedShift.chickensButchered} (${closedShift.kgButchered.toStringAsFixed(2)} kg)'),
+                    child: Text('Pollos destazados: ${closedShift.chickensButchered.humanizedCount()} (${closedShift.kgButchered.humanizedCount(decimalDigits: 2)} kg)'),
                   ),
                 if (closedShift.transfersSent > 0)
                   Padding(
@@ -325,14 +334,10 @@ class ShiftScreen extends StatelessWidget {
     final style = bold ? const TextStyle(fontWeight: FontWeight.w700) : null;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: style), Text('\$${value.toStringAsFixed(2)}', style: style)]),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: style), Text('\$${value.humanizedCount(decimalDigits: 2)}', style: (style ?? const TextStyle()).copyWith(fontFeatures: [FontFeature.tabularFigures()]))]),
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Fecha pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 
 class _ShiftSummary {
@@ -426,6 +431,7 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
             controller: _amountController,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'Cantidad',
               errorText: _errorMessage,
@@ -435,6 +441,8 @@ class _CashMovementDialogState extends State<_CashMovementDialog> {
           const SizedBox(height: 12),
           TextField(
             controller: _commentController,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
             decoration: const InputDecoration(labelText: 'Comentario', border: OutlineInputBorder()),
           ),
         ],

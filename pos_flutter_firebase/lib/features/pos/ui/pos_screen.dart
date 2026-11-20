@@ -9,6 +9,13 @@ import '../../../shared/models/product.dart';
 import '../../../shared/models/shift.dart';
 import '../../../shared/models/store.dart';
 import '../../../shared/providers/cart_provider.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/widgets/bottom_padding.dart';
+import '../../../shared/extensions/date_time_x.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/edgy.dart';
+import '../../../shared/widgets/max_amount_input_formatter.dart';
 import '../../../core/logger/logger_service.dart';
 import '../domain/open_ticket_repository.dart';
 import '../../sales/domain/sale_repository.dart';
@@ -239,23 +246,25 @@ class _PosScreenState extends State<PosScreen> {
       }
 
       _cartProvider.clear();
+      HapticsHelper.success();
       if (paymentMethod == 'split') {
         final cambio = changeDue ?? 0;
         _showMessage(
           cambio > 0.009
-              ? 'Venta $folio guardada. Efectivo: \$${(cashAmount ?? 0).toStringAsFixed(2)} · Tarjeta: \$${(cardAmount ?? 0).toStringAsFixed(2)} · Cambio: \$${cambio.toStringAsFixed(2)}'
-              : 'Venta $folio guardada. Efectivo: \$${(cashAmount ?? 0).toStringAsFixed(2)} · Tarjeta: \$${(cardAmount ?? 0).toStringAsFixed(2)}',
+              ? 'Venta $folio guardada. Efectivo: \${(cashAmount ?? 0).humanizedCount(decimalDigits: 2)} · Tarjeta: \${(cardAmount ?? 0).humanizedCount(decimalDigits: 2)} · Cambio: \${cambio.humanizedCount(decimalDigits: 2)}'
+              : 'Venta $folio guardada. Efectivo: \${(cashAmount ?? 0).humanizedCount(decimalDigits: 2)} · Tarjeta: \${(cardAmount ?? 0).humanizedCount(decimalDigits: 2)}',
         );
       } else {
         _showMessage(
           paymentMethod == 'cash'
-              ? 'Venta $folio guardada. Cambio: \$${(changeDue ?? 0).toStringAsFixed(2)}'
+              ? 'Venta $folio guardada. Cambio: \${(changeDue ?? 0).humanizedCount(decimalDigits: 2)}'
               : 'Venta $folio con tarjeta guardada',
         );
       }
     } catch (e) {
       _logger.error('Error al crear venta: $e', tag: 'Sale');
       if (!mounted) return;
+      HapticsHelper.error();
       _showMessage(e.toString());
     } finally {
       if (mounted) {
@@ -309,6 +318,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   Future<void> _showTicketDiscountDialog() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final result = await showDialog<TicketDiscountSelection>(
       context: context,
       builder: (context) => TicketDiscountDialog(
@@ -329,6 +339,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   Future<void> _suspendCurrentTicket() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (_cartProvider.isEmpty) {
       _showMessage('Agrega productos antes de suspender');
       return;
@@ -360,6 +371,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   Future<void> _showOpenTicketsDialog() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final ticket = await showDialog<OpenTicket>(
       context: context,
       builder: (context) => _OpenTicketsDialog(
@@ -424,6 +436,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   Future<void> _editCartItem(CartItem item) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final result = await showDialog<({List<SelectedModifier> modifiers, double discount, String discountName})>(
       context: context,
       builder: (context) => ModifierSelectionDialog(
@@ -444,6 +457,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 
   Future<void> _showCartDetails() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -468,21 +482,21 @@ class _PosScreenState extends State<PosScreen> {
                                   children: [
                                     Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                                     Text(
-                                      '${item.formattedQuantity} x \$${item.product.price.toStringAsFixed(2)}',
+                                      '${item.formattedQuantity} x \${item.product.price.humanizedCount(decimalDigits: 2)}',
                                     ),
                                     if (item.modifiers.isNotEmpty)
                                       Text(
-                                        item.modifiers.map((m) => m.price == 0 ? m.name : '${m.name} +\$${m.price.toStringAsFixed(2)}').join(', '),
+                                        item.modifiers.map((m) => m.price == 0 ? m.name : '${m.name} +\${m.price.humanizedCount(decimalDigits: 2)}').join(', '),
                                         style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                       ),
                                     if (item.discount > 0)
-                                      Text('Descuento: -\$${item.discount.toStringAsFixed(2)}', style: const TextStyle(color: Colors.orange, fontSize: 12)),
+                                      Text('Descuento: -\${item.discount.humanizedCount(decimalDigits: 2)}', style: const TextStyle(color: Colors.orange, fontSize: 12)),
                                     if (item.product.trackStock)
                                       Text('Stock actual: ${_formatQuantity(item.product.stockQuantity)}'),
                                   ],
                                 ),
                               ),
-                              Text('\$${item.subtotal.toStringAsFixed(2)}'),
+                              Text('\${item.subtotal.humanizedCount(decimalDigits: 2)}'),
                             ],
                           ),
                         ),
@@ -493,14 +507,14 @@ class _PosScreenState extends State<PosScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(_cartProvider.ticketDiscountName ?? 'Descuento'),
-                            Text('-\$${_cartProvider.ticketDiscount.toStringAsFixed(2)}'),
+                            Text('-\${_cartProvider.ticketDiscount.humanizedCount(decimalDigits: 2)}'),
                           ],
                         ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Total', style: TextStyle(fontWeight: FontWeight.w700)),
-                          Text('\$${_total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text('\${_total.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ],
@@ -711,12 +725,13 @@ class _PosScreenState extends State<PosScreen> {
               child: _cartProvider.isEmpty
                   ? const Center(child: Text('Sin productos'))
                   : ListView.builder(
+                      padding: EdgeInsets.only(bottom: BottomPadding.of(context)),
                       itemCount: _cartProvider.cart.length,
                       itemBuilder: (context, index) {
                         final item = _cartProvider.cart[index];
                         final modifierText = item.modifiers.isEmpty
                             ? null
-                            : item.modifiers.map((m) => m.price == 0 ? m.name : '${m.name} +\$${m.price.toStringAsFixed(2)}').join(', ');
+                            : item.modifiers.map((m) => m.price == 0 ? m.name : '${m.name} +\${m.price.humanizedCount(decimalDigits: 2)}').join(', ');
                         return ListTile(
                           dense: true,
                           onTap: () => _editCartItem(item),
@@ -724,17 +739,17 @@ class _PosScreenState extends State<PosScreen> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('${item.formattedQuantity} x \$${item.product.price.toStringAsFixed(2)}'),
+                              Text('${item.formattedQuantity} x \${item.product.price.humanizedCount(decimalDigits: 2)}'),
                               if (modifierText != null)
                                 Text(modifierText, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
                               if (item.discount > 0)
-                                Text('Descuento: -\$${item.discount.toStringAsFixed(2)}', style: const TextStyle(color: Colors.orange, fontSize: 11)),
+                                Text('Descuento: -\${item.discount.humanizedCount(decimalDigits: 2)}', style: const TextStyle(color: Colors.orange, fontSize: 11)),
                             ],
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('\$${item.subtotal.toStringAsFixed(2)}'),
+                              Text('\${item.subtotal.humanizedCount(decimalDigits: 2)}'),
                               const SizedBox(width: 4),
                               IconButton(
                                 icon: const Icon(Icons.remove_circle_outline, size: 20),
@@ -752,14 +767,14 @@ class _PosScreenState extends State<PosScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Subtotal'),
-                  Text('\$${_subtotal.toStringAsFixed(2)}'),
+                  Text('\${_subtotal.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
                 ],
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(_cartProvider.ticketDiscountName ?? 'Descuento'),
-                  Text('-\$${_cartProvider.ticketDiscount.toStringAsFixed(2)}'),
+                  Text('-\${_cartProvider.ticketDiscount.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
                 ],
               ),
               const SizedBox(height: 4),
@@ -769,8 +784,8 @@ class _PosScreenState extends State<PosScreen> {
               children: [
                 const Text('Total'),
                 Text(
-                  '\$${_total.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleLarge,
+                  '\${_total.humanizedCount(decimalDigits: 2)}',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontFeatures: [FontFeature.tabularFigures()]),
                 ),
               ],
             ),
@@ -928,6 +943,7 @@ class _CategoryFilter extends StatefulWidget {
 
 class _CategoryFilterState extends State<_CategoryFilter> {
   late Stream<List<app_models.Category>> _categoriesStream;
+  final Map<String, GlobalKey> _keys = {};
 
   @override
   void initState() {
@@ -935,6 +951,28 @@ class _CategoryFilterState extends State<_CategoryFilter> {
     _categoriesStream = context
         .read<CategoryRepository>()
         .watchCategories(businessId: widget.businessId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollTo(widget.selectedCategoryId ?? 'all');
+    });
+  }
+
+  void _syncKeys(List<app_models.Category> categories) {
+    final ids = {'all', for (final c in categories) c.id};
+    _keys.removeWhere((id, _) => !ids.contains(id));
+    for (final id in ids) {
+      _keys.putIfAbsent(id, () => GlobalKey());
+    }
+  }
+
+  void _scrollTo(String id) {
+    final context = _keys[id]?.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -956,30 +994,47 @@ class _CategoryFilterState extends State<_CategoryFilter> {
         if (categories.isEmpty) {
           return const SizedBox.shrink();
         }
+        _syncKeys(categories);
 
         return SizedBox(
           height: 42,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
+          child: Edgy(
+            axis: Axis.horizontal,
+            fadeStart: false,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
             itemCount: categories.length + 1,
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               if (index == 0) {
-                return ChoiceChip(
-                  selected: widget.selectedCategoryId == null,
-                  label: const Text('Todas'),
-                  onSelected: (_) => widget.onChanged(null),
+                return Container(
+                  key: _keys['all'],
+                  child: ChoiceChip(
+                    selected: widget.selectedCategoryId == null,
+                    label: const Text('Todas'),
+                    onSelected: (_) {
+                      widget.onChanged(null);
+                      _scrollTo('all');
+                    },
+                  ),
                 );
               }
 
               final category = categories[index - 1];
-              return ChoiceChip(
-                selected: widget.selectedCategoryId == category.id,
-                avatar: CircleAvatar(backgroundColor: Color(category.color)),
-                label: Text(category.name),
-                onSelected: (_) => widget.onChanged(category.id),
+              return Container(
+                key: _keys[category.id],
+                child: ChoiceChip(
+                  selected: widget.selectedCategoryId == category.id,
+                  avatar: CircleAvatar(backgroundColor: Color(category.color)),
+                  label: Text(category.name.orPlaceholder()),
+                  onSelected: (_) {
+                    widget.onChanged(category.id);
+                    _scrollTo(category.id);
+                  },
+                ),
               );
             },
+            ),
           ),
         );
       },
@@ -1076,9 +1131,9 @@ class _OpenTicketsDialog extends StatelessWidget {
                   final ticket = tickets[index];
                   return ListTile(
                     leading: const Icon(Icons.pending_actions),
-                    title: Text(ticket.name),
-                    subtitle: Text('${ticket.items.length} productos ┬╖ ${_formatDate(ticket.updatedAt ?? ticket.createdAt)}'),
-                    trailing: Text('\$${ticket.total.toStringAsFixed(2)}'),
+                    title: Text(ticket.name.orPlaceholder()),
+                    subtitle: Text('${ticket.items.length} productos ┬╖ ${(ticket.updatedAt ?? ticket.createdAt).formattedDayOrDate('es')}'),
+                    trailing: Text('\${ticket.total.humanizedCount(decimalDigits: 2)}'),
                     onTap: () => Navigator.pop(context, ticket),
                   );
                 },
@@ -1093,11 +1148,6 @@ class _OpenTicketsDialog extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Fecha pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')} '
-        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 
 class _WeightQuantityDialog extends StatefulWidget {
@@ -1166,6 +1216,7 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
     return AlertDialog(
       title: Text('Cantidad de ${widget.product.name}'),
       content: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1174,6 +1225,9 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
               controller: _controller,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textInputAction: widget.askChickenCount ? TextInputAction.next : TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              inputFormatters: [MaxAmountInputFormatter(widget.product.stockQuantity)],
               onChanged: _updatePreview,
               decoration: InputDecoration(
                 labelText: widget.priceMode ? 'Precio total (\$)' : 'Peso/volumen',
@@ -1182,8 +1236,8 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
                     : null,
                 helperText: widget.priceMode
                     ? (widget.product.trackStock
-                        ? 'Precio por kg: \$${widget.product.price.toStringAsFixed(2)} · Disponible: ${_formatKg(widget.product.stockQuantity)} kg'
-                        : 'Precio por kg: \$${widget.product.price.toStringAsFixed(2)}')
+                        ? 'Precio por kg: \${widget.product.price.humanizedCount(decimalDigits: 2)} · Disponible: ${_formatKg(widget.product.stockQuantity)} kg'
+                        : 'Precio por kg: \${widget.product.price.humanizedCount(decimalDigits: 2)}')
                     : widget.product.trackStock
                         ? 'Disponible: ${_formatKg(widget.product.stockQuantity)}'
                         : 'Ejemplo: 0.250, 1.5, 2',
@@ -1196,6 +1250,8 @@ class _WeightQuantityDialogState extends State<_WeightQuantityDialog> {
               TextField(
                 controller: _chickenCountCtrl,
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
                   labelText: 'Cantidad de pollos',
                   helperText: widget.product.chickenCount != null
@@ -1317,11 +1373,12 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
         ],
       ),
       content: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Total: \$${total.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
+            Text('Total: \${total.humanizedCount(decimalDigits: 2)}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontFeatures: [FontFeature.tabularFigures()])),
             const SizedBox(height: 12),
             if (!_isSplit) ...[
               TextField(
@@ -1343,7 +1400,7 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
                 children: suggestions
                     .map(
                       (value) => ActionChip(
-                        label: Text('Recibi \$${value.toStringAsFixed(0)}'),
+                        label: Text('Recibi \${value.humanizedCount(decimalDigits: 0)}'),
                         onPressed: () => _setReceived(value),
                       ),
                     )
@@ -1353,14 +1410,16 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
               Builder(builder: (context) {
                 final change = cashReceived - total;
                 return Text(
-                  'Cambio: \$${change < 0 ? 0.toStringAsFixed(2) : change.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleLarge,
+                  'Cambio: \$${change < 0 ? 0.humanizedCount(decimalDigits: 2) : change.humanizedCount(decimalDigits: 2)}',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontFeatures: [FontFeature.tabularFigures()]),
                 );
               }),
             ] else ...[
               TextField(
                 controller: _cardController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textInputAction: TextInputAction.next,
+                inputFormatters: [MaxAmountInputFormatter(total)],
                 decoration: InputDecoration(
                   labelText: 'Monto con tarjeta',
                   hintText: 'Cuanto paga con tarjeta',
@@ -1373,6 +1432,8 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
               TextField(
                 controller: _receivedController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submitSplit(),
                 decoration: InputDecoration(
                   labelText: 'Efectivo recibido',
                   hintText: 'Cuanto entrega en efectivo',
@@ -1395,24 +1456,24 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Efectivo necesario:'),
-                        Text('\$${efectivoNecesario.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text('\${efectivoNecesario.humanizedCount(decimalDigits: 2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()])),
                       ],
                     ),
                     const SizedBox(height: 4),
                     if (falta > 0.009)
-                      Text('Falta efectivo: \$${falta.toStringAsFixed(2)}',
-                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700))
+                      Text('Falta efectivo: \${falta.humanizedCount(decimalDigits: 2)}',
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()]))
                     else
-                      Text('Cambio: \$${cambio.toStringAsFixed(2)}',
+                      Text('Cambio: \${cambio.humanizedCount(decimalDigits: 2)}',
                           style: TextStyle(
-                              color: cambio > 0 ? Colors.green : null, fontWeight: FontWeight.w700)),
+                              color: cambio > 0 ? Colors.green : null, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()])),
                   ],
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Tarjeta (\$${cardAmount.toStringAsFixed(2)}) + Efectivo necesario (\$${efectivoNecesario.toStringAsFixed(2)}) = \$${total.toStringAsFixed(2)}',
+                'Tarjeta (\${cardAmount.humanizedCount(decimalDigits: 2)}) + Efectivo necesario (\${efectivoNecesario.humanizedCount(decimalDigits: 2)}) = \${total.humanizedCount(decimalDigits: 2)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -1481,7 +1542,7 @@ class _CashPaymentDialogState extends State<_CashPaymentDialog> {
     }
     final efectivoNecesario = (widget.total - card).clamp(0.0, widget.total);
     if (cashReceived < efectivoNecesario - 0.009) {
-      setState(() => _errorMessage = 'Falta efectivo: necesita \$${efectivoNecesario.toStringAsFixed(2)} y recibió \$${cashReceived.toStringAsFixed(2)}');
+      setState(() => _errorMessage = 'Falta efectivo: necesita \${efectivoNecesario.humanizedCount(decimalDigits: 2)} y recibió \$${cashReceived.toStringAsFixed(2)}');
       return;
     }
     final cambio = cashReceived - efectivoNecesario;

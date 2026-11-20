@@ -2,11 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import '../../../../shared/models/employee.dart';
 import '../../../../shared/models/store.dart';
 import '../../../../shared/models/sale.dart';
 import '../../../../shared/providers/app_session_notifier.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/extensions/num_x.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -90,7 +93,9 @@ class _OverviewTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20).copyWith(
+        bottom: BottomPadding.of(context, minimum: 20),
+      ),
       children: [
         Row(
           children: [
@@ -172,7 +177,8 @@ class _OverviewTab extends StatelessWidget {
               showTitles: true,
               getTitlesWidget: (value, meta) {
                 if (value.toInt() < days.length) {
-                  return Text('${days[value.toInt()].day}/${days[value.toInt()].month}', style: const TextStyle(fontSize: 10));
+                  final day = days[value.toInt()];
+                  return Text('${day.day} ${DateFormat('MMM', 'es').format(day)}', style: const TextStyle(fontSize: 10));
                 }
                 return const Text('');
               },
@@ -229,7 +235,7 @@ class _MetricCard extends StatelessWidget {
                 children: [
                   Text(title, style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 4),
-                  Text('\$${(100 + DateTime.now().second % 900).toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleLarge),
+                  Text('\$${(100 + DateTime.now().second % 900).humanizedCount(decimalDigits: 2)}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontFeatures: [FontFeature.tabularFigures()])),
                 ],
               ),
             ),
@@ -261,7 +267,9 @@ class _MetricsTab extends StatelessWidget {
         }).toList();
 
         return ListView(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(20).copyWith(
+            bottom: BottomPadding.of(context, minimum: 20),
+          ),
           children: [
             Text('Estad\u00edsticas (30 d\u00edas)', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
@@ -329,7 +337,7 @@ class _StatGrid extends StatelessWidget {
               children: [
                 Icon(m.$3, color: m.$4, size: 20),
                 const SizedBox(height: 8),
-                Text('\$${m.$2.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium),
+                Text('\$${m.$2.humanizedCount(decimalDigits: 2)}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontFeatures: [FontFeature.tabularFigures()])),
                 const SizedBox(height: 4),
                 Text(m.$1, style: Theme.of(context).textTheme.bodySmall),
               ],
@@ -360,14 +368,14 @@ class _PaymentChart extends StatelessWidget {
           child: Column(children: [
             Container(width: 80, height: 80, decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [AppColors.accent, AppColors.accentDark]))),
             const SizedBox(height: 8),
-            Text('Efectivo ${cashPct.toStringAsFixed(0)}%'),
+            Text('Efectivo ${cashPct.humanizedCount(decimalDigits: 0)}%', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
           ]),
         ),
         Expanded(
           child: Column(children: [
             Container(width: 80, height: 80, decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [AppColors.warning, const Color(0xFFFFA726)]))),
             const SizedBox(height: 8),
-            Text('Tarjeta ${cardPct.toStringAsFixed(0)}%'),
+            Text('Tarjeta ${cardPct.humanizedCount(decimalDigits: 0)}%', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
           ]),
         ),
       ],
@@ -382,7 +390,9 @@ class _QuickActionsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20).copyWith(
+        bottom: BottomPadding.of(context, minimum: 20),
+      ),
       children: [
         Text('Acciones r\u00e1pidas', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 16),

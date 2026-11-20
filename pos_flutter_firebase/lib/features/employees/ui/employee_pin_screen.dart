@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/offline/local_database.dart';
 import '../../../shared/models/employee.dart';
 import '../../../shared/models/store.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 
 class EmployeePinScreen extends StatefulWidget {
   const EmployeePinScreen({
@@ -73,7 +75,9 @@ class _EmployeePinScreenState extends State<EmployeePinScreen> {
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24).copyWith(
+            bottom: BottomPadding.of(context, minimum: 24),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
@@ -87,7 +91,7 @@ class _EmployeePinScreenState extends State<EmployeePinScreen> {
                   initialValue: _selectedEmployee,
                   decoration: const InputDecoration(labelText: 'Empleado', border: OutlineInputBorder()),
                   items: widget.employees
-                      .map((employee) => DropdownMenuItem(value: employee, child: Text(employee.name)))
+                      .map((employee) => DropdownMenuItem(value: employee, child: Text(employee.name.orPlaceholder())))
                       .toList(),
                   onChanged: (employee) => setState(() {
                     _selectedEmployee = employee;

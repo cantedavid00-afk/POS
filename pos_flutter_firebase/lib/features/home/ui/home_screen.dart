@@ -8,7 +8,7 @@ import '../../../shared/models/store.dart';
 import '../../../shared/providers/app_session_notifier.dart';
 import 'desktop/desktop_layout.dart';
 import 'back_office_screen.dart';
-import '../../business/ui/business_setup_screen.dart';
+import '../../auth/ui/login_screen.dart';
 import '../../employees/ui/employee_pin_screen.dart';
 import '../../pos/ui/pos_screen.dart';
 import '../../poultry/ui/receive_chicken_screen.dart';
@@ -21,6 +21,10 @@ import '../../settings/ui/settings_screen.dart';
 import '../../shift/ui/shift_screen.dart';
 import '../../../features/auth/domain/auth_repository.dart';
 import '../../../features/losses/ui/losses_screen.dart';
+import '../../../shared/providers/changelog_notifier.dart';
+import '../../../shared/extensions/phone_x.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -36,6 +40,42 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowChangelog());
+  }
+
+  Future<void> _maybeShowChangelog() async {
+    final changelog = context.read<ChangelogNotifier>();
+    await changelog.initialize();
+    if (!mounted || changelog.unseen == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Novedades'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final change in changelog.unseen!) Text('• $change'),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              changelog.dismiss();
+              Navigator.pop(context);
+            },
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<AppSessionNotifier>(
       builder: (context, sessionNotifier, _) {
@@ -45,9 +85,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final session = sessionNotifier.session;
         if (session == null || session.stores.isEmpty) {
-          return BusinessSetupScreen(
-            onCreated: () => sessionNotifier.refreshSession(),
-            authRepository: context.read<AuthRepository>(),
+          // Sin negocio vinculado: solo login con correo y contraseña.
+          // Al entrar se recarga la sesión para traer sucursales y empleados.
+          // Si la carga falla, se muestra el error con reintento (antes era silencio).
+          final loadError = sessionNotifier.error;
+          return Column(
+            children: [
+              Expanded(
+                child: LoginScreen(
+                  onAuthenticated: () => sessionNotifier.refreshSession(),
+                ),
+              ),
+              if (loadError != null)
+                Container(
+                  width: double.infinity,
+                  color: Colors.red.shade700,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          loadError,
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => sessionNotifier.refreshSession(),
+                        child: const Text('Reintentar',
+                            style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           );
         }
 
@@ -146,13 +216,14 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(session.business.name, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
-                Text('${selectedStore.name} · ${activeEmployee.name}', style: Theme.of(context).textTheme.bodySmall),
+                Text('${selectedStore.name.orPlaceholder()} · ${activeEmployee.name.orPlaceholder()}', style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),
           const Divider(height: 1),
           Expanded(
             child: ListView.builder(
+              padding: EdgeInsets.only(bottom: BottomPadding.of(context)),
               itemCount: items.length,
               itemBuilder: (context, index) {
                 final item = items[index];
@@ -322,10 +393,10 @@ class _StoreSelectionScreen extends StatelessWidget {
                   (store) => Card(
                     child: ListTile(
                       leading: const Icon(Icons.storefront),
-                      title: Text(store.name),
+                      title: Text(store.name.orPlaceholder()),
                       subtitle: Text([
                         if (store.address.isNotEmpty) store.address,
-                        if (store.phone.isNotEmpty) store.phone,
+                        if (store.phone.isNotEmpty) store.phone.maskPhoneNumber,
                       ].join(' · ')),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => onSelected(store),

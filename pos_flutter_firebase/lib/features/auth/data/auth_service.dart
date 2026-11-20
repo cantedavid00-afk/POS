@@ -151,6 +151,7 @@ class AuthService implements AuthRepository {
       case 'weak-password':
         return 'La contrasena debe tener al menos 6 caracteres';
       case 'invalid-credential':
+      case 'invalid-login-credentials':
         return 'Correo o contrasena incorrectos';
       case 'missing-email':
         return 'Ingresa un correo';
@@ -159,7 +160,7 @@ class AuthService implements AuthRepository {
       case 'too-many-requests':
         return 'Demasiados intentos. Espera unos minutos e intenta de nuevo';
       default:
-        return 'Error: $code';
+        return 'No pudimos entrar. Verifica tu correo y contrasena (Error: $code)';
     }
   }
 }

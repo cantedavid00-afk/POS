@@ -7,6 +7,10 @@ import '../../../shared/models/cart_item.dart';
 import '../../../shared/models/sale.dart';
 import '../../../shared/models/employee.dart';
 import '../../../shared/models/store.dart';
+import '../../../shared/extensions/date_time_x.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../../../features/sales/domain/pdf_repository.dart';
 import '../../../features/sales/domain/sale_repository.dart';
 import '../../../features/shift/domain/shift_repository.dart';
@@ -44,7 +48,9 @@ class ReceiptsScreen extends StatelessWidget {
           final entries = _groupSalesByDay(sales);
 
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16).copyWith(
+              bottom: BottomPadding.of(context, minimum: 16),
+            ),
             itemCount: entries.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
@@ -64,11 +70,11 @@ class ReceiptsScreen extends StatelessWidget {
                 color: _statusColor(context, sale),
                 child: ListTile(
                   leading: Icon(_saleIcon(sale), color: _iconColor(sale)),
-                  title: Text('${_folioLabel(sale)} ${sale.folio}'),
+                  title: Text('${_folioLabel(sale)} ${sale.folio.orPlaceholder()}'),
                   subtitle: Text(
-                    '${_formatDate(_saleDate(sale))} · ${_paymentLabel(sale.paymentMethod)} · ${_statusLabel(sale)} · ID ${_shortFolio(sale.id)}',
+                    '${_saleDate(sale).formattedDateTime('es')} · ${_paymentLabel(sale.paymentMethod)} · ${_statusLabel(sale)} · ID ${_shortFolio(sale.id)}',
                   ),
-                  trailing: Text('\$${sale.total.toStringAsFixed(2)}'),
+                  trailing: Text('\$${sale.total.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
                   onTap: () => _showSaleDetails(context, sale),
                 ),
               );
@@ -134,14 +140,14 @@ class ReceiptsScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Sucursal: ${store.name}'),
-                Text('Fecha: ${_formatDate(_saleDate(sale))}'),
+                Text('Sucursal: ${store.name.orPlaceholder()}'),
+                Text('Fecha: ${_saleDate(sale).formattedDateTime('es')}'),
                 Text('Metodo: ${_paymentLabel(sale.paymentMethod)}'),
                 Text('Estado: ${_statusLabel(sale)}'),
                 if (sale.originalSaleId != null) Text('Ticket original: ${_shortFolio(sale.originalSaleId!)}'),
-                if (sale.cashReceived != null) Text('Recibido: \$${sale.cashReceived!.toStringAsFixed(2)}'),
-                if (sale.changeDue != null) Text('Cambio: \$${sale.changeDue!.toStringAsFixed(2)}'),
-                if (sale.cancelReason != null) Text('Motivo: ${sale.cancelReason}'),
+                if (sale.cashReceived != null) Text('Recibido: \$${sale.cashReceived!.humanizedCount(decimalDigits: 2)}'),
+                if (sale.changeDue != null) Text('Cambio: \$${sale.changeDue!.humanizedCount(decimalDigits: 2)}'),
+                if (sale.cancelReason != null) Text('Motivo: ${(sale.cancelReason ?? '').orPlaceholder()}'),
                 if (sale.returnedItems.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   const Text('Productos devueltos:', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -192,7 +198,7 @@ class ReceiptsScreen extends StatelessWidget {
     final subtotal = (item['subtotal'] as num? ?? 0).toDouble();
     final modifiers = parseModifiers(item['modifiers']);
     final discount = (item['discount'] as num? ?? 0).toDouble();
-    final modifierLabels = modifiers.map((m) => m.price == 0 ? m.name : '${m.name} +\$${m.price.toStringAsFixed(2)}').toList();
+    final modifierLabels = modifiers.map((m) => m.price == 0 ? m.name.orPlaceholder() : '${m.name.orPlaceholder()} +\$${m.price.humanizedCount(decimalDigits: 2)}').toList();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -203,14 +209,14 @@ class ReceiptsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text('${_formatQuantity(quantity)} x \$${unitPrice.toStringAsFixed(2)}'),
+                Text(name.orPlaceholder(), style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text('${_formatQuantity(quantity)} x \$${unitPrice.humanizedCount(decimalDigits: 2)}'),
                 if (modifierLabels.isNotEmpty) Text('+ ${modifierLabels.join(', ')}'),
-                if (discount > 0) Text('Descuento producto: \$${discount.toStringAsFixed(2)}'),
+                if (discount > 0) Text('Descuento producto: \$${discount.humanizedCount(decimalDigits: 2)}'),
               ],
             ),
           ),
-          Text('\$${subtotal.toStringAsFixed(2)}'),
+          Text('\$${subtotal.humanizedCount(decimalDigits: 2)}'),
         ],
       ),
     );
@@ -292,11 +298,6 @@ class ReceiptsScreen extends StatelessWidget {
     return 'Pagado';
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Fecha pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
   String _formatQuantity(double value) {
     if (value % 1 == 0) return value.toStringAsFixed(0);
     return value.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
@@ -347,6 +348,7 @@ class _ReturnDialogState extends State<_ReturnDialog> {
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

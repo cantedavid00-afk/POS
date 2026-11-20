@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import '../adapters/type_adapters.dart';
 import '../../shared/models/product.dart';
 import '../../shared/models/product_stock.dart';
@@ -31,7 +34,16 @@ const _kLastSession = 'lastSession_v1';
 
 class LocalDatabase {
   static Future<void> initialize() async {
-    await Hive.initFlutter();
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      // En escritorio los Documentos suelen estar en OneDrive o con acceso
+      // controlado y el .exe sin firmar no puede escribir ahí (PathAccess
+      // denied). La caché vive en AppData, siempre escribible y no sincronizada.
+      final support = await getApplicationSupportDirectory();
+      await Directory(support.path).create(recursive: true);
+      Hive.init(support.path);
+    } else {
+      await Hive.initFlutter();
+    }
     registerTypeAdapters();
     await Hive.openBox<List>(_kProducts);
     await Hive.openBox<List>(_kCategories);

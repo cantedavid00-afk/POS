@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../../features/auth/data/auth_service.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, this.authService});
+  const LoginScreen({super.key, this.authService, this.onAuthenticated});
 
   final AuthService? authService;
+
+  /// Se llama cuando el login/registro fue exitoso. Sirve para recargar
+  /// la sesión cuando este login se muestra fuera del AuthGate.
+  final VoidCallback? onAuthenticated;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -66,6 +71,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
       _errorMessage = error;
     });
+
+    if (error == null) widget.onAuthenticated?.call();
   }
 
   Future<void> _showForgotPasswordDialog() async {
@@ -90,7 +97,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.all(24).copyWith(
+            bottom: BottomPadding.of(context, minimum: 24),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(

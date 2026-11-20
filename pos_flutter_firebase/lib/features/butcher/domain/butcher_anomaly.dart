@@ -1,3 +1,5 @@
+import '../../../shared/extensions/num_x.dart';
+
 class ButcherAnomaly {
   final String? id;
   final String businessId;
@@ -60,11 +62,11 @@ class ButcherAnomaly {
 
   String get message {
     if (type == 'excess_kg') {
-      return 'Quedan ${remainingKg.toStringAsFixed(2)} kg pero 0 pollos. '
+      return 'Quedan ${remainingKg.humanizedCount(decimalDigits: 2)} kg pero 0 pollos. '
           'Los pollos destazados pesaron menos de lo esperado.';
     }
     if (type == 'excess_chickens') {
-      return 'Quedan $remainingChickens pollos pero 0 kg. '
+      return 'Quedan ${remainingChickens.humanizedCount()} pollos pero 0 kg. '
           'Los pollos destazados pesaron más de lo esperado.';
     }
     return '';

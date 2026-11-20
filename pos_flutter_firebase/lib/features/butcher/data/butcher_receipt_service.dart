@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../shared/extensions/num_x.dart';
 import '../../../shared/models/butcher_section.dart';
 import '../../../core/network/connectivity_service.dart';
 import '../../../core/offline/sync_queue.dart';
@@ -271,8 +272,8 @@ class ButcherReceiptService {
       if (currentWholeStock < exactWeightKg) {
         throw StateError(
           'Stock insuficiente de pollo entero: '
-          'disponible ${currentWholeStock.toStringAsFixed(2)} kg, '
-          'requerido ${exactWeightKg.toStringAsFixed(2)} kg',
+          'disponible ${currentWholeStock.humanizedCount(decimalDigits: 2)} kg, '
+          'requerido ${exactWeightKg.humanizedCount(decimalDigits: 2)} kg',
         );
       }
       if (currentChickenCount < chickenCount) {

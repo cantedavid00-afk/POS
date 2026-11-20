@@ -2,6 +2,8 @@
 
 import 'package:pos_flutter_firebase/shared/models/discount.dart';
 import 'package:pos_flutter_firebase/features/pos/data/discount_service.dart';
+import 'package:pos_flutter_firebase/shared/extensions/num_x.dart';
+import 'package:pos_flutter_firebase/shared/extensions/string_x.dart';
 
 typedef TicketDiscountSelection = ({
   String id,
@@ -67,7 +69,7 @@ class _TicketDiscountDialogState extends State<TicketDiscountDialog> {
                 children: [
                   const Text('Descuento actual aplicado.'),
                   const SizedBox(height: 8),
-                  Text('Descuento: \$${widget.currentDiscount.toStringAsFixed(2)}'),
+                  Text('Descuento: \$${widget.currentDiscount.humanizedCount(decimalDigits: 2)}'),
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () => Navigator.pop(context, (
@@ -90,7 +92,7 @@ class _TicketDiscountDialogState extends State<TicketDiscountDialog> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Subtotal actual: \$${widget.subtotal.toStringAsFixed(2)}'),
+                Text('Subtotal actual: \$${widget.subtotal.humanizedCount(decimalDigits: 2)}'),
                 const SizedBox(height: 8),
                 Expanded(
                   child: ListView(
@@ -99,10 +101,10 @@ class _TicketDiscountDialogState extends State<TicketDiscountDialog> {
                       final applied = _apply(discount);
                       return ListTile(
                         leading: const Icon(Icons.discount),
-                        title: Text(discount.name),
+                        title: Text(discount.name.orPlaceholder()),
                         subtitle: Text(discount.isPercentage
-                            ? '${discount.value.toStringAsFixed(0)}% (-\$${applied.amount.toStringAsFixed(2)})'
-                            : '-\$${discount.value.toStringAsFixed(2)}'),
+                            ? '${discount.value.humanizedCount(decimalDigits: 0)}% (-\$${applied.amount.humanizedCount(decimalDigits: 2)})'
+                            : '-\$${discount.value.humanizedCount(decimalDigits: 2)}'),
                         onTap: () => Navigator.pop(context, applied),
                       );
                     }).toList(),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../shared/models/employee.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../domain/poultry_repository.dart';
 import '../domain/chicken_receiving.dart';
 
@@ -60,6 +62,7 @@ class _ReceiveChickenScreenState extends State<ReceiveChickenScreen> {
       final repo = context.read<PoultryRepository>();
       await repo.saveReceiving(widget.businessId, receiving);
       if (!mounted) return;
+      HapticsHelper.success();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Recepción guardada correctamente')),
       );
@@ -73,6 +76,7 @@ class _ReceiveChickenScreenState extends State<ReceiveChickenScreen> {
   }
 
   void _showError(String msg) {
+    HapticsHelper.error();
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
   }
@@ -89,11 +93,15 @@ class _ReceiveChickenScreenState extends State<ReceiveChickenScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Recibir Pollo')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.all(16).copyWith(
+          bottom: BottomPadding.of(context, minimum: 16),
+        ),
         children: [
           TextField(
             controller: _chickenCountCtrl,
             keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
               labelText: 'Cantidad de pollos recibidos',
               border: OutlineInputBorder(),
@@ -103,6 +111,8 @@ class _ReceiveChickenScreenState extends State<ReceiveChickenScreen> {
           TextField(
             controller: _totalWeightCtrl,
             keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _save(),
             decoration: const InputDecoration(
               labelText: 'Peso total (kg)',
               border: OutlineInputBorder(),

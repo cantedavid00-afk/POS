@@ -6,6 +6,7 @@ import 'package:pos_flutter_firebase/shared/models/discount.dart';
 import 'package:pos_flutter_firebase/shared/models/modifier.dart';
 import 'package:pos_flutter_firebase/features/pos/domain/discount_repository.dart';
 import 'package:pos_flutter_firebase/features/pos/domain/modifier_repository.dart';
+import 'package:pos_flutter_firebase/shared/extensions/num_x.dart';
 
 class ModifierSelectionDialog extends StatefulWidget {
   const ModifierSelectionDialog({
@@ -120,7 +121,7 @@ class _ModifierSelectionDialogState extends State<ModifierSelectionDialog> {
               dense: true,
               value: selected,
               title: Text(modifier.name),
-              subtitle: Text(modifier.price == 0 ? 'Sin costo extra' : '+\$${modifier.price.toStringAsFixed(2)}'),
+              subtitle: Text(modifier.price == 0 ? 'Sin costo extra' : '+\$${modifier.price.humanizedCount(decimalDigits: 2)}'),
               onChanged: (checked) {
                 setState(() {
                   if (checked == true) {
@@ -147,7 +148,7 @@ class _ModifierSelectionDialogState extends State<ModifierSelectionDialog> {
             if (_selectedDiscount > 0) ...[
               const SizedBox(width: 8),
               Chip(
-                label: Text('-\$${_selectedDiscount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
+                label: Text('-\$${_selectedDiscount.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontSize: 12)),
                 deleteIcon: const Icon(Icons.close, size: 16),
                 onDeleted: () => setState(() {
                   _selectedDiscount = 0;
@@ -175,8 +176,8 @@ class _ModifierSelectionDialogState extends State<ModifierSelectionDialog> {
             return Column(
               children: discounts.map((d) {
                 final displayAmount = d.isPercentage
-                    ? '${d.value.toStringAsFixed(0)}% (-${(widget.itemPrice * d.value / 100).toStringAsFixed(2)})'
-                    : '-\$${d.value.toStringAsFixed(2)} por unidad/kg (-${_fixedDiscountAmount(d).toStringAsFixed(2)})';
+                    ? '${d.value.humanizedCount(decimalDigits: 0)}% (-${(widget.itemPrice * d.value / 100).humanizedCount(decimalDigits: 2)})'
+                    : '-\$${d.value.humanizedCount(decimalDigits: 2)} por unidad/kg (-${_fixedDiscountAmount(d).humanizedCount(decimalDigits: 2)})';
                 return ListTile(
                   dense: true,
                   leading: Icon(Icons.discount, color: _selectedDiscountName == d.name ? Colors.orange : null),

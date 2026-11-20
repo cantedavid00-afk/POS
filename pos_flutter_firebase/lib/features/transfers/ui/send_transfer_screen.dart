@@ -6,6 +6,10 @@ import '../../../shared/models/product.dart';
 import '../../../shared/models/product_stock.dart';
 import '../../../shared/models/store.dart';
 import '../../../shared/providers/app_session_notifier.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../../products/domain/product_repository.dart';
 import '../../inventory/domain/stock_repository.dart';
 import '../../poultry/domain/poultry_repository.dart';
@@ -101,7 +105,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
       if (qty <= 0) continue;
       if (qty > e.stock.stockQuantity) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Stock insuficiente de ${e.product.name}: disponible ${e.stock.stockQuantity.toStringAsFixed(2)}')),
+          SnackBar(content: Text('Stock insuficiente de ${e.product.name.orPlaceholder()}: disponible ${e.stock.stockQuantity.humanizedCount(decimalDigits: 2)}')),
         );
         return;
       }
@@ -155,12 +159,14 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
       final repo = context.read<TransferRepository>();
       await repo.sendTransfer(widget.businessId, transfer);
       if (!mounted) return;
+      HapticsHelper.success();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Transferencia enviada')),
       );
       widget.onTransferSent?.call();
     } catch (e) {
       if (!mounted) return;
+      HapticsHelper.error();
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
@@ -202,7 +208,9 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
         return Scaffold(
       appBar: AppBar(title: const Text('Enviar mercancía')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16).copyWith(
+          bottom: BottomPadding.of(context, minimum: 16),
+        ),
         children: [
           DropdownButtonFormField<Store>(
             initialValue: _selectedStore,
@@ -226,8 +234,8 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
             if (added) return const SizedBox.shrink();
             return Card(
               child: ListTile(
-                title: Text(product.name),
-                subtitle: Text('Stock: ${stock.stockQuantity.toStringAsFixed(2)}'),
+                title: Text(product.name.orPlaceholder()),
+                subtitle: Text('Stock: ${stock.stockQuantity.humanizedCount(decimalDigits: 2)}'),
                 trailing: FilledButton.tonal(
                   onPressed: () => _addItem(product, stock),
                   child: const Text('Agregar'),
@@ -255,9 +263,9 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(e.product.name,
+                                Text(e.product.name.orPlaceholder(),
                                     style: const TextStyle(fontWeight: FontWeight.bold)),
-                                Text('Stock: ${e.stock.stockQuantity.toStringAsFixed(2)} kg'),
+                                Text('Stock: ${e.stock.stockQuantity.humanizedCount(decimalDigits: 2)} kg'),
                               ],
                             ),
                           ),

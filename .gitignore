@@ -1,1 +1,5 @@
 .idea/
+
+# Builds de escritorio empaquetados (incluyen el .env dentro de flutter_assets)
+pos_flutter_firebase/PV-Donald-Windows/
+*.zip

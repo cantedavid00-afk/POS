@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../shared/extensions/phone_x.dart';
 import 'report_definition.dart';
 
 /// Construye todas las hojas del reporte a partir de los documentos crudos de
@@ -190,7 +191,7 @@ ReportSheet _storesSheet(List<Map<String, dynamic>> stores) {
         headers: const ['Nombre', 'Dirección', 'Teléfono', 'Activa'],
         rows: [
           for (final s in stores)
-            [_str(s['name']), _str(s['address']), _str(s['phone']), _yesNo(s['active'])],
+            [_str(s['name']), _str(s['address']), _str(s['phone']).maskPhoneNumber, _yesNo(s['active'])],
         ],
       ),
     ],

@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../../../shared/models/employee.dart';
 import '../../../shared/models/store.dart';
 import '../../../shared/providers/app_session_notifier.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../domain/transfer_repository.dart';
 import '../domain/transfer.dart';
 import '../domain/transfer_item.dart';
@@ -49,6 +52,7 @@ class _ReceiveTransferScreenState extends State<ReceiveTransferScreen> {
             return const Center(child: Text('Sin transferencias pendientes'));
           }
           return ListView.builder(
+            padding: EdgeInsets.only(bottom: BottomPadding.of(context)),
             itemCount: list.length,
             itemBuilder: (context, index) {
               final transfer = list[index];
@@ -80,6 +84,7 @@ class _ReceiveTransferScreenState extends State<ReceiveTransferScreen> {
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Confirmar recepción'),
           content: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -216,8 +221,8 @@ class _TransferCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text('Artículos: ${transfer.items.length}'),
             ...transfer.items.map((item) => Text(
-                  '  • ${item.productName}: ${item.sentQuantity.toStringAsFixed(2)} kg'
-                  '${item.sentChickenCount != null ? ' (${item.sentChickenCount} pollos)' : ''}',
+                  '  • ${item.productName.orPlaceholder()}: ${item.sentQuantity.humanizedCount(decimalDigits: 2)} kg'
+                  '${item.sentChickenCount != null ? ' (${item.sentChickenCount!.humanizedCount()} pollos)' : ''}',
                 )),
             const SizedBox(height: 8),
             if (transfer.isSent)

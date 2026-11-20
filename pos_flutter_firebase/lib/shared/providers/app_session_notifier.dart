@@ -71,6 +71,7 @@ class AppSessionNotifier extends ChangeNotifier {
       _session = await _appContextService.loadSession();
     } catch (e) {
       _error = e.toString();
+      debugPrint('loadSession error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();

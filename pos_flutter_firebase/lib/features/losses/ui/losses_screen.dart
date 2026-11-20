@@ -9,6 +9,12 @@ import '../../../shared/models/store.dart';
 import '../../../features/inventory/domain/inventory_repository.dart';
 import '../../../features/inventory/domain/stock_repository.dart';
 import '../../../features/products/domain/product_repository.dart';
+import '../../../shared/extensions/date_time_x.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/widgets/max_amount_input_formatter.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../domain/loss_repository.dart';
 
 class LossesScreen extends StatefulWidget {
@@ -54,6 +60,7 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
         title: const Text('Pérdidas de mercancía'),
         bottom: TabBar(
           controller: _tabController,
+          onTap: (_) => HapticsHelper.light(),
           tabs: const [
             Tab(text: 'Registrar pérdida'),
             Tab(text: 'Historial'),
@@ -91,7 +98,9 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
                 if (allProducts.isNotEmpty) ...[
                   Expanded(
                     child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(16).copyWith(
+                        bottom: BottomPadding.of(context, minimum: 16),
+                      ),
                       itemCount: allProducts.length,
                       itemBuilder: (context, index) {
                         final product = allProducts[index];
@@ -101,7 +110,7 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
                         return Card(
                           color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
                           child: ListTile(
-                            title: Text(product.name),
+                            title: Text(product.name.orPlaceholder()),
                             subtitle: Text(
                                 '${product.categoryName ?? 'Sin categoría'} · ${isWeight ? '${stockQty.toStringAsFixed(2)} kg' : '${stockQty.toStringAsFixed(0)} Pz'}'),
                             trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : const Icon(Icons.radio_button_unchecked),
@@ -165,7 +174,9 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
           builder: (context, prodSnapshot) {
             final sellByMap = {for (final p in prodSnapshot.data ?? const <Product>[]) p.id: p.sellBy};
             return ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16).copyWith(
+                bottom: BottomPadding.of(context, minimum: 16),
+              ),
               itemCount: losses.length,
               itemBuilder: (context, index) {
                 final movement = losses[index];
@@ -174,14 +185,14 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
                 return Card(
                   child: ListTile(
                     leading: const Icon(Icons.delete_forever, color: Colors.orange),
-                    title: Text(movement.productName),
+                    title: Text(movement.productName.orPlaceholder()),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                             'Cantidad: ${movement.previousQuantity.toStringAsFixed(isWeight ? 2 : 0)} → ${movement.newQuantity.toStringAsFixed(isWeight ? 2 : 0)} $unit'),
                         Text('Motivo: ${movement.reason}'),
-                        Text(_formatDate(movement.createdAt)),
+                        Text(movement.createdAt.formattedDateTime('es')),
                       ],
                     ),
                     trailing: Text('-${movement.difference.abs().toStringAsFixed(isWeight ? 2 : 0)} $unit'),
@@ -195,10 +206,6 @@ class _LossesScreenState extends State<LossesScreen> with SingleTickerProviderSt
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Fecha pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 
 class _LossFormCard extends StatefulWidget {
@@ -252,7 +259,7 @@ class _LossFormCardState extends State<_LossFormCard> {
     }
     if (input > widget.currentStock) {
       setState(() => _errorMessage =
-          'No hay suficiente stock. Disponible: ${widget.currentStock.toStringAsFixed(_isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'}');
+          'No hay suficiente stock. Disponible: ${widget.currentStock.humanizedCount(decimalDigits: _isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'}');
       return;
     }
     final reason = _reasonController.text.trim();
@@ -274,14 +281,16 @@ class _LossFormCardState extends State<_LossFormCard> {
         employeeId: widget.employeeId,
       );
       if (!mounted) return;
+      HapticsHelper.success();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(
-                'Pérdida registrada: ${input.toStringAsFixed(_isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'} de ${widget.product.name}')),
+                'Pérdida registrada: ${input.humanizedCount(decimalDigits: _isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'} de ${widget.product.name.orPlaceholder()}')),
       );
       widget.onRegistered();
     } catch (e) {
       if (!mounted) return;
+      HapticsHelper.error();
       setState(() {
         _isRegistering = false;
         _errorMessage = e.toString();
@@ -309,16 +318,18 @@ class _LossFormCardState extends State<_LossFormCard> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.product.name, style: Theme.of(context).textTheme.titleMedium),
+              Text(widget.product.name.orPlaceholder(), style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               Text(
-                'Stock actual: ${widget.currentStock.toStringAsFixed(_isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'}',
+                'Stock actual: ${widget.currentStock.humanizedCount(decimalDigits: _isWeight ? 2 : 0)} ${_isWeight ? 'kg' : 'Pz'}',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _quantityController,
                 keyboardType: TextInputType.numberWithOptions(decimal: _isWeight),
+                textInputAction: TextInputAction.next,
+                inputFormatters: [MaxAmountInputFormatter(widget.currentStock)],
                 decoration: InputDecoration(
                   labelText: _isWeight ? 'Kilos perdidos' : 'Piezas perdidas',
                   hintText: _isWeight ? 'Ej: 2.500' : 'Ej: 10',
@@ -328,6 +339,8 @@ class _LossFormCardState extends State<_LossFormCard> {
               const SizedBox(height: 12),
               TextField(
                 controller: _reasonController,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _registerLoss(),
                 decoration: const InputDecoration(
                   labelText: 'Motivo',
                   hintText: 'Vencido, dañado, excedente, etc.',

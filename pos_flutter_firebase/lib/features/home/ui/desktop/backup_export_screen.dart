@@ -7,6 +7,7 @@ import '../../../business/domain/backup_repository.dart';
 import '../../../business/domain/excel_export_repository.dart';
 import '../../../business/data/backup_service.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
 
 class BackupExportScreen extends StatefulWidget {
   final String businessId;
@@ -33,7 +34,9 @@ class _BackupExportScreenState extends State<BackupExportScreen> {
         title: const Text('Respaldos y Exportaciones'),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20).copyWith(
+          bottom: BottomPadding.of(context, minimum: 20),
+        ),
         children: [
           Text('Exportar datos', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),

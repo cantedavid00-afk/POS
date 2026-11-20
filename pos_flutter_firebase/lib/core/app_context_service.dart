@@ -20,15 +20,22 @@ class AppContextService implements AppContextRepository {
       final session = await _loadOnline(user.uid);
       if (session != null) {
         // Persistimos la última sesión para poder reconstruirla sin conexión.
-        await LocalDatabase.cacheLastSession(
-          businessId: session.business.id,
-          employeeId: session.employee.id,
-        );
+        // Best-effort: si el disco falla, la sesión en línea ya cargó y vale.
+        try {
+          await LocalDatabase.cacheLastSession(
+            businessId: session.business.id,
+            employeeId: session.employee.id,
+          );
+        } catch (_) {}
       }
       return session;
-    } catch (_) {
+    } catch (e) {
       // Sin conexión: reconstruimos la sesión desde la caché local.
-      return _loadCached(user.uid);
+      // Si no hay caché, relanzamos el error real en vez de devolver
+      // null en silencio (eso dejaba al usuario rebotando en el login).
+      final cached = _loadCached(user.uid);
+      if (cached != null) return cached;
+      throw e;
     }
   }
 
@@ -78,6 +85,48 @@ class AppContextService implements AppContextRepository {
       employees: employees,
       stores: stores,
     );
+  }
+
+  /// Dice por qué no se pudo armar sesión, para mostrarlo en pantalla
+  /// en vez de un callejón sin salida.
+  Future<String> diagnoseNoSession() async {
+    final user = _auth.currentUser;
+    if (user == null) return 'no-user';
+    try {
+      final userDoc = await _db.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) return 'no-user-doc';
+      final userData = userDoc.data() ?? {};
+      final businessId = userData['businessId'] as String? ?? '';
+      if (businessId.isEmpty) return 'no-business-id';
+      final businessDoc = await _db.collection('businesses').doc(businessId).get();
+      final employeeId = userData['employeeId'] as String? ?? user.uid;
+      final employeeDoc = await _db
+          .collection('businesses')
+          .doc(businessId)
+          .collection('employees')
+          .doc(employeeId)
+          .get();
+      if (!businessDoc.exists || !employeeDoc.exists) {
+        return 'no-business-or-employee';
+      }
+      final storesQuery = await _db
+          .collection('businesses')
+          .doc(businessId)
+          .collection('stores')
+          .where('active', isEqualTo: true)
+          .get();
+      if (storesQuery.docs.isEmpty) return 'no-stores';
+      return 'error';
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied' || e.code == 'unavailable') {
+        final last = LocalDatabase.getLastSession();
+        if (last == null) return 'offline-no-cache';
+        return 'no-business-or-employee';
+      }
+      return 'error';
+    } catch (_) {
+      return 'error';
+    }
   }
 
   /// Reconstruye la sesión desde la caché de Hive (para abrir la app sin

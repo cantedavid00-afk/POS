@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/glass_container.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../shared/models/butcher_section.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../domain/butcher_repository.dart';
 
 class ButcherRecipeScreen extends StatefulWidget {
@@ -90,7 +92,7 @@ class _ButcherRecipeScreenState extends State<ButcherRecipeScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Los porcentajes no suman 100%'),
-          content: Text('Suma actual: ${(total * 100).toStringAsFixed(2)}%. ¿Guardar de todas formas?'),
+          content: Text('Suma actual: ${(total * 100).humanizedCount(decimalDigits: 2)}%. ¿Guardar de todas formas?'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
             FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
@@ -128,7 +130,9 @@ class _ButcherRecipeScreenState extends State<ButcherRecipeScreen> {
         }
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 24).copyWith(
+            bottom: BottomPadding.of(context, minimum: 24),
+          ),
           children: [
             _buildRecipeCard(sections, isDark),
             const SizedBox(height: 24),
@@ -188,8 +192,8 @@ class _ButcherRecipeScreenState extends State<ButcherRecipeScreen> {
                 if (_isEditing)
                   ...sections.map((s) => _editableRow(s, isDark))
                 else
-                  ...sections.map((s) => _row(s.name, '${(s.percentage * 100).toStringAsFixed(2)}%', isDark: isDark)),
-                _row('TOTAL', '${(totalPct * 100).toStringAsFixed(2)}%', bold: true, isDark: isDark),
+                  ...sections.map((s) => _row(s.name, '${(s.percentage * 100).humanizedCount(decimalDigits: 2)}%', isDark: isDark)),
+                _row('TOTAL', '${(totalPct * 100).humanizedCount(decimalDigits: 2)}%', bold: true, isDark: isDark),
               ],
             ),
           ),
@@ -471,14 +475,14 @@ class _ReceiptCardState extends State<_ReceiptCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${widget.count} pollos x ${widget.avg.toStringAsFixed(3)} kg',
+                      Text('${widget.count.humanizedCount()} pollos x ${widget.avg.humanizedCount(decimalDigits: 3)} kg',
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, decoration: TextDecoration.lineThrough)),
                       if (widget.storeName != null)
                         Text(widget.storeName!, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
                     ],
                   ),
                 ),
-                Text('${widget.total.toStringAsFixed(3)} kg',
+                Text('${widget.total.humanizedCount(decimalDigits: 3)} kg',
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, decoration: TextDecoration.lineThrough)),
               ],
             ),
@@ -502,67 +506,79 @@ class _ReceiptCardState extends State<_ReceiptCard> {
 
     return GlassContainer(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.zero,
       borderRadius: 0,
       blur: 6,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: widget.appliedCount > 0
-                      ? GlassColors.success.withValues(alpha: 0.15)
-                      : GlassColors.warning.withValues(alpha: 0.15),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: widget.appliedCount > 0
+                        ? GlassColors.success.withValues(alpha: 0.15)
+                        : GlassColors.warning.withValues(alpha: 0.15),
+                  ),
+                  child: Icon(
+                    widget.appliedCount > 0 ? Icons.check_circle : Icons.pending,
+                    size: 16,
+                    color: widget.appliedCount > 0 ? GlassColors.success : GlassColors.warning,
+                  ),
                 ),
-                child: Icon(
-                  widget.appliedCount > 0 ? Icons.check_circle : Icons.pending,
-                  size: 16,
-                  color: widget.appliedCount > 0 ? GlassColors.success : GlassColors.warning,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${widget.count.humanizedCount()} pollos x ${widget.avg.humanizedCount(decimalDigits: 3)} kg',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      if (widget.storeName != null)
+                        Text(widget.storeName!, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${widget.count} pollos x ${widget.avg.toStringAsFixed(3)} kg',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                    if (widget.storeName != null)
-                      Text(widget.storeName!, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-                  ],
-                ),
-              ),
-              Text('${widget.total.toStringAsFixed(3)} kg', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-            ],
+                Text('${widget.total.humanizedCount(decimalDigits: 3)} kg', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: _buildYieldTable(widget.yields, widget.isDark),
           ),
-          if (widget.appliedCount < widget.totalSections) ...[
-            const SizedBox(height: 6),
-            Text('${widget.appliedCount} de ${widget.totalSections} secciones aplicadas a productos existentes',
-              style: TextStyle(fontSize: 11, color: GlassColors.warning)),
-          ],
-          if (widget.appliedCount == widget.totalSections && widget.appliedCount > 0) ...[
-            const SizedBox(height: 6),
-            Text('Aplicado al inventario automaticamente',
-              style: TextStyle(fontSize: 11, color: GlassColors.success)),
-          ],
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _isCancelling ? null : _cancelEntry,
-              icon: _isCancelling
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.cancel_outlined, size: 16),
-              label: const Text('Cancelar entrada', style: TextStyle(fontSize: 12)),
-              style: TextButton.styleFrom(foregroundColor: GlassColors.danger),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.appliedCount < widget.totalSections) ...[
+                  const SizedBox(height: 6),
+                  Text('${widget.appliedCount.humanizedCount()} de ${widget.totalSections.humanizedCount()} secciones aplicadas a productos existentes',
+                    style: TextStyle(fontSize: 11, color: GlassColors.warning)),
+                ],
+                if (widget.appliedCount == widget.totalSections && widget.appliedCount > 0) ...[
+                  const SizedBox(height: 6),
+                  Text('Aplicado al inventario automaticamente',
+                    style: TextStyle(fontSize: 11, color: GlassColors.success)),
+                ],
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _isCancelling ? null : _cancelEntry,
+                    icon: _isCancelling
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.cancel_outlined, size: 16),
+                    label: const Text('Cancelar entrada', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(foregroundColor: GlassColors.danger),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -587,12 +603,12 @@ class _ReceiptCardState extends State<_ReceiptCard> {
             final displayStock = (real != null && real.stock > 0)
                 ? real.stock
                 : weight;
-            final stock = '${displayStock.toStringAsFixed(3)} kg';
-            final price = real != null ? '\$${real.price.toStringAsFixed(2)}' : '—';
-            final sales = real != null ? '${real.sales.toStringAsFixed(0)}' : '—';
+            final stock = '${displayStock.humanizedCount(decimalDigits: 3)} kg';
+            final price = real != null ? '\$${real.price.humanizedCount(decimalDigits: 2)}' : '—';
+            final sales = real != null ? '${real.sales.humanizedCount(decimalDigits: 0)}' : '—';
             return _histRow(
               name,
-              '${weight.toStringAsFixed(3)} kg',
+              '${weight.humanizedCount(decimalDigits: 3)} kg',
               stock,
               price,
               sales,

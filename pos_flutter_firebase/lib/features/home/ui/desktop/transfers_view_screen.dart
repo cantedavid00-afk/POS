@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/models/employee.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/extensions/string_x.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
 
 class TransfersViewScreen extends StatelessWidget {
   const TransfersViewScreen({super.key});
@@ -19,7 +21,9 @@ class TransfersViewScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20).copyWith(
+          bottom: BottomPadding.of(context, minimum: 20),
+        ),
         children: [
           _TransferSection(
             title: 'Traspaos enviados',
@@ -106,8 +110,8 @@ class _TransferSection extends StatelessWidget {
                     decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                     child: Icon(icon, color: color, size: 18),
                   ),
-                  title: Text('${item.fromStore} \u2192 ${item.toStore}'),
-                  subtitle: Text('${item.products} productos \u00b7 ${item.weight} \u00b7 ${item.date}'),
+                  title: Text('${item.fromStore.orPlaceholder()} \u2192 ${item.toStore.orPlaceholder()}'),
+                  subtitle: Text('${item.products} productos \u00b7 ${item.weight.orPlaceholder()} \u00b7 ${item.date.orPlaceholder()}'),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(

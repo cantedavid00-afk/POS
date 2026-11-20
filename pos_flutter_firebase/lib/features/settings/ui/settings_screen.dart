@@ -10,6 +10,12 @@ import '../../../features/business/domain/business_repository.dart';
 import '../../../features/business/domain/backup_repository.dart';
 import '../../../features/business/domain/excel_export_repository.dart';
 import '../../../features/poultry/ui/poultry_config_screen.dart';
+import '../../../features/settings/data/changelog_data.dart';
+import '../../../shared/providers/changelog_notifier.dart';
+import '../../../shared/extensions/phone_x.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
+import '../../../shared/widgets/version_indicator.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, required this.businessId});
@@ -28,7 +34,9 @@ class SettingsScreen extends StatelessWidget {
         label: const Text('Sucursal'),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16).copyWith(
+          bottom: BottomPadding.of(context, minimum: 16),
+        ),
         children: [
           StreamBuilder<Business>(
             stream: businessService.watchBusiness(businessId: businessId),
@@ -41,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
               return Card(
                 child: ListTile(
                   leading: const Icon(Icons.storefront),
-                  title: Text(business.name),
+                  title: Text(business.name.orPlaceholder()),
                   subtitle: Text('${business.currency} · ${business.timezone}'),
                   trailing: const Icon(Icons.edit),
                   onTap: () => _showBusinessDialog(context, businessService, business),
@@ -75,10 +83,10 @@ class SettingsScreen extends StatelessWidget {
                       (store) => Card(
                         child: ListTile(
                           leading: Icon(store.active ? Icons.store : Icons.store_outlined),
-                          title: Text(store.name),
+                          title: Text(store.name.orPlaceholder()),
                           subtitle: Text([
                             if (store.address.isNotEmpty) store.address,
-                            if (store.phone.isNotEmpty) store.phone,
+                            if (store.phone.isNotEmpty) store.phone.maskPhoneNumber,
                             store.active ? 'Activa' : 'Inactiva',
                           ].join(' · ')),
                           trailing: const Icon(Icons.edit),
@@ -135,6 +143,48 @@ class SettingsScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _importLocalBackup(context),
             ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.new_releases_outlined),
+              title: const Text('Novedades'),
+              subtitle: const Text('Qué cambió en las últimas versiones'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showChangelogAgain(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Center(child: VersionIndicator()),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showChangelogAgain(BuildContext context) async {
+    final changelog = context.read<ChangelogNotifier>();
+    final items = changelog.unseen ?? kChangelogEs.values.expand((e) => e).toList();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Novedades'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final change in items) Text('• $change'),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              changelog.dismiss();
+              Navigator.pop(context);
+            },
+            child: const Text('Entendido'),
           ),
         ],
       ),
@@ -384,11 +434,11 @@ class _BusinessDialogState extends State<_BusinessDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder())),
+          TextField(controller: _nameController, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder())),
           const SizedBox(height: 12),
-          TextField(controller: _currencyController, decoration: const InputDecoration(labelText: 'Moneda', border: OutlineInputBorder())),
+          TextField(controller: _currencyController, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Moneda', border: OutlineInputBorder())),
           const SizedBox(height: 12),
-          TextField(controller: _timezoneController, decoration: const InputDecoration(labelText: 'Zona horaria', border: OutlineInputBorder())),
+          TextField(controller: _timezoneController, textInputAction: TextInputAction.done, onSubmitted: (_) => _submit(), decoration: const InputDecoration(labelText: 'Zona horaria', border: OutlineInputBorder())),
           if (_errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
@@ -449,7 +499,7 @@ class _StoreDialogState extends State<_StoreDialog> {
     final store = widget.store;
     _nameController = TextEditingController(text: store?.name ?? '');
     _addressController = TextEditingController(text: store?.address ?? '');
-    _phoneController = TextEditingController(text: store?.phone ?? '');
+    _phoneController = TextEditingController(text: (store?.phone ?? '').maskPhoneNumber);
     _active = store?.active ?? true;
   }
 
@@ -466,14 +516,15 @@ class _StoreDialogState extends State<_StoreDialog> {
     return AlertDialog(
       title: Text(widget.store == null ? 'Nueva sucursal' : 'Editar sucursal'),
       content: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder())),
+            TextField(controller: _nameController, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder())),
             const SizedBox(height: 12),
-            TextField(controller: _addressController, decoration: const InputDecoration(labelText: 'Direccion', border: OutlineInputBorder())),
+            TextField(controller: _addressController, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Direccion', border: OutlineInputBorder())),
             const SizedBox(height: 12),
-            TextField(controller: _phoneController, decoration: const InputDecoration(labelText: 'Telefono', border: OutlineInputBorder())),
+            TextField(controller: _phoneController, keyboardType: TextInputType.phone, textInputAction: TextInputAction.done, onSubmitted: (_) => _submit(), inputFormatters: [phoneNumberInputFormatter], decoration: const InputDecoration(labelText: 'Telefono', border: OutlineInputBorder())),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Activa'),
@@ -501,7 +552,7 @@ class _StoreDialogState extends State<_StoreDialog> {
       _StoreDialogResult(
         name: _nameController.text,
         address: _addressController.text,
-        phone: _phoneController.text,
+        phone: _phoneController.text.unmaskPhoneNumber,
         active: _active,
       ),
     );

@@ -12,6 +12,9 @@ import '../../../features/pos/domain/discount_repository.dart';
 import '../../../features/pos/domain/modifier_repository.dart';
 import '../../../features/products/domain/product_repository.dart';
 import '../../../features/inventory/domain/stock_repository.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../../../shared/widgets/product_presentation.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -48,6 +51,7 @@ class _ProductsScreenState extends State<ProductsScreen> with SingleTickerProvid
           title: const Text('Items'),
           bottom: TabBar(
             controller: _tabController,
+            onTap: (_) => HapticsHelper.light(),
             isScrollable: true,
             tabs: const [
               Tab(text: 'Productos'),
@@ -183,7 +187,9 @@ class _ProductsTab extends StatelessWidget {
         }
 
             return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16).copyWith(
+            bottom: BottomPadding.of(context, minimum: 16),
+          ),
           itemCount: products.length,
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
@@ -191,7 +197,7 @@ class _ProductsTab extends StatelessWidget {
             final effectivePrice = stocks[product.id]?.price ?? product.price;
             return ListTile(
               leading: ProductPresentation(product: product),
-              title: Text(product.name),
+              title: Text(product.name.orPlaceholder()),
               subtitle: Text(_productSubtitle(product)),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -309,14 +315,16 @@ class _CategoriesTab extends StatelessWidget {
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16).copyWith(
+            bottom: BottomPadding.of(context, minimum: 16),
+          ),
           itemCount: categories.length,
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final category = categories[index];
             return ListTile(
               leading: CircleAvatar(backgroundColor: Color(category.color)),
-              title: Text(category.name),
+              title: Text(category.name.orPlaceholder()),
               trailing: PopupMenuButton<String>(
                 tooltip: 'Opciones de categoria',
                 onSelected: (value) async {
@@ -473,6 +481,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     return AlertDialog(
       title: Text(widget.category == null ? 'Nueva categoria' : 'Editar categoria'),
       content: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,7 +556,9 @@ class _ModifiersTab extends StatelessWidget {
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16).copyWith(
+            bottom: BottomPadding.of(context, minimum: 16),
+          ),
           itemCount: modifiers.length,
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
@@ -706,6 +717,7 @@ class _ModifierDialogState extends State<_ModifierDialog> {
     return AlertDialog(
       title: Text(widget.modifier == null ? 'Nuevo modificador' : 'Editar modificador'),
       content: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -780,7 +792,9 @@ class _DiscountsTab extends StatelessWidget {
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16).copyWith(
+            bottom: BottomPadding.of(context, minimum: 16),
+          ),
           itemCount: discounts.length,
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
@@ -790,7 +804,7 @@ class _DiscountsTab extends StatelessWidget {
                 : '\$${discount.value.toStringAsFixed(2)} de descuento';
             return ListTile(
               leading: const CircleAvatar(child: Icon(Icons.discount)),
-              title: Text(discount.name),
+              title: Text(discount.name.orPlaceholder()),
               subtitle: Text(subtitle),
               trailing: PopupMenuButton<String>(
                 tooltip: 'Opciones de descuento',
@@ -949,6 +963,7 @@ class _DiscountDialogState extends State<_DiscountDialog> {
     return AlertDialog(
       title: Text(widget.discount == null ? 'Nuevo descuento' : 'Editar descuento'),
       content: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

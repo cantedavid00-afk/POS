@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_fade/image_fade.dart';
 
 import '../models/product.dart';
 import '../../core/theme/glass_container.dart';
@@ -46,12 +47,24 @@ class ProductPresentation extends StatelessWidget {
         height: size,
         child: ClipRRect(
           borderRadius: BorderRadius.zero,
-          child: Image.network(
-            product.imageUrl!,
+          child: ImageFade(
+            image: NetworkImage(product.imageUrl!),
             width: size,
             height: size,
             fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => _ShapePresentation(product: product, size: size),
+            placeholder: Container(
+              color: Colors.grey.shade100,
+            ),
+            errorBuilder: (context, exception) {
+              return Container(
+                color: Colors.grey.shade100,
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  size: 20,
+                  color: Colors.grey.shade400,
+                ),
+              );
+            },
           ),
         ),
       );

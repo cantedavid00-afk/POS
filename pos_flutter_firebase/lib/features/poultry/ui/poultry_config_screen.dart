@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../domain/poultry_repository.dart';
 import '../domain/poultry_config.dart';
 import '../domain/poultry_section.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 
 class PoultryConfigScreen extends StatefulWidget {
   const PoultryConfigScreen({super.key, required this.businessId});
@@ -111,11 +113,13 @@ class _PoultryConfigScreenState extends State<PoultryConfigScreen> {
       await repo.saveConfig(widget.businessId, config);
 
       if (!mounted) return;
+      HapticsHelper.success();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Configuración guardada')),
       );
     } catch (e) {
       if (!mounted) return;
+      HapticsHelper.error();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al guardar: $e')),
       );
@@ -170,7 +174,10 @@ class _PoultryConfigScreenState extends State<PoultryConfigScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Configuración Pollería')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.all(16).copyWith(
+          bottom: BottomPadding.of(context, minimum: 16),
+        ),
         children: [
           Text('Tolerancia de advertencia (%)',
               style: Theme.of(context).textTheme.titleSmall),
@@ -178,6 +185,7 @@ class _PoultryConfigScreenState extends State<PoultryConfigScreen> {
           TextField(
             controller: _toleranceController,
             keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
               hintText: 'Ej: 5.0',
               border: OutlineInputBorder(),
@@ -189,6 +197,8 @@ class _PoultryConfigScreenState extends State<PoultryConfigScreen> {
           const SizedBox(height: 4),
           TextField(
             controller: _wholeProductIdController,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _save(),
             decoration: const InputDecoration(
               hintText: 'Dejar vacío si no existe',
               border: OutlineInputBorder(),

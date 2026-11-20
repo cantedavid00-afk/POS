@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 
 import '../../../shared/models/category.dart' as app_models;
 import '../../../shared/models/product.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../../../shared/models/store.dart';
 import '../../../shared/providers/app_session_notifier.dart';
 import '../../../features/inventory/domain/stock_repository.dart';
@@ -279,6 +281,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       builder: (dialogContext) => AlertDialog(
         title: Text('Precios por sucursal · ${product.name}'),
         content: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -357,6 +360,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _addCategory() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final category = await showDialog<app_models.Category>(
       context: context,
       builder: (context) => _AddCategoryDialog(
@@ -400,7 +404,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
           final selectedCategoryIsMissing = _selectedCategoryId != null &&
               !categories.any((category) => category.id == _selectedCategoryId);
           return ListView(
-            padding: const EdgeInsets.all(16),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.all(16).copyWith(
+              bottom: BottomPadding.of(context, minimum: 16),
+            ),
             children: [
               if (_errorMessage != null) ...[
                 Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
@@ -428,7 +435,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         ...categories.map(
                           (category) => DropdownMenuItem<String?>(
                             value: category.id,
-                            child: Text(category.name),
+                            child: Text(category.name.orPlaceholder()),
                           ),
                         ),
                         if (selectedCategoryIsMissing)

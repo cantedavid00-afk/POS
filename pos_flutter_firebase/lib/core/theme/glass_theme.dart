@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class AppColors {
@@ -42,6 +44,39 @@ class AppColors {
   ];
 }
 
+/// Transiciones: nativas en móvil, ninguna en web y escritorio.
+const PageTransitionsTheme appPageTransitionsTheme = PageTransitionsTheme(
+  builders: {
+    TargetPlatform.android: ZoomPageTransitionsBuilder(),
+    TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.macOS: _NoPageTransitionsBuilder(),
+    TargetPlatform.windows: _NoPageTransitionsBuilder(),
+    TargetPlatform.linux: _NoPageTransitionsBuilder(),
+    TargetPlatform.fuchsia: _NoPageTransitionsBuilder(),
+  },
+);
+
+class _NoPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoPageTransitionsBuilder();
+
+  @override
+  Duration get transitionDuration => Duration.zero;
+
+  @override
+  Duration get reverseTransitionDuration => Duration.zero;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
+  }
+}
+
 class AppTheme {
   static ThemeData light() => ThemeData(
     useMaterial3: true,
@@ -51,6 +86,12 @@ class AppTheme {
       primary: AppColors.accent,
       surface: AppColors.lightSurface,
       error: AppColors.danger,
+    ),
+    pageTransitionsTheme: appPageTransitionsTheme,
+    textSelectionTheme: TextSelectionThemeData(
+      selectionColor: AppColors.accent.withValues(alpha: 0.3),
+      selectionHandleColor: AppColors.accent,
+      cursorColor: AppColors.accent,
     ),
     textTheme: const TextTheme(
       headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.lightText, letterSpacing: -0.5),
@@ -195,6 +236,12 @@ class AppTheme {
       primary: AppColors.accent,
       surface: AppColors.darkSurface,
       error: AppColors.danger,
+    ),
+    pageTransitionsTheme: appPageTransitionsTheme,
+    textSelectionTheme: TextSelectionThemeData(
+      selectionColor: AppColors.accent.withValues(alpha: 0.3),
+      selectionHandleColor: AppColors.accent,
+      cursorColor: AppColors.accent,
     ),
     textTheme: const TextTheme(
       headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.darkText, letterSpacing: -0.5),

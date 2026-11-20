@@ -9,6 +9,10 @@ import '../../../inventory/domain/inventory_repository.dart';
 import '../../../products/domain/product_repository.dart';
 import '../../../../shared/models/inventory_movement.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/extensions/num_x.dart';
+import '../../../../shared/extensions/string_x.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
+import '../../../../shared/widgets/spring_sheet.dart';
 
 class InventoryViewScreen extends StatefulWidget {
   final String businessId;
@@ -92,14 +96,16 @@ class _InventoryViewScreenState extends State<InventoryViewScreen> {
                 ),
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16).copyWith(
+                    bottom: BottomPadding.of(context, minimum: 16),
+                  ),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final product = filtered[index];
                     return Card(
                       child: ListTile(
-                        title: Text(product.name),
-                        subtitle: Text('${product.categoryName} · Stock: ${product.stockQuantity.toStringAsFixed(2)}'),
+                        title: Text(product.name.orPlaceholder()),
+                        subtitle: Text('${product.categoryName.orPlaceholder()} · Stock: ${product.stockQuantity.toStringAsFixed(2)}'),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -149,9 +155,8 @@ class _InventoryViewScreenState extends State<InventoryViewScreen> {
   }
 
   void _showProductDetail(BuildContext context, Product product) {
-    showModalBottomSheet(
+    showSpringBottomSheet(
       context: context,
-      isScrollControlled: true,
       builder: (context) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: Container(
@@ -160,13 +165,13 @@ class _InventoryViewScreenState extends State<InventoryViewScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(product.name, style: Theme.of(context).textTheme.titleLarge),
+              Text(product.name.orPlaceholder(), style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               _detailRow('Categor\u00eda', product.categoryName ?? 'Sin categor\u00eda'),
-              _detailRow('Precio', '\$${product.price.toStringAsFixed(2)}'),
-              _detailRow('Costo', '\$${product.cost.toStringAsFixed(2)}'),
-              _detailRow('Stock actual', product.stockQuantity.toStringAsFixed(2)),
-              _detailRow('Alerta baja', product.lowStockAlertQuantity.toStringAsFixed(2)),
+              _detailRow('Precio', '\$${product.price.humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Costo', '\$${product.cost.humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Stock actual', product.stockQuantity.humanizedCount(decimalDigits: 2)),
+              _detailRow('Alerta baja', product.lowStockAlertQuantity.humanizedCount(decimalDigits: 2)),
               _detailRow('Tipo', product.presentationType),
               _detailRow('Activo', product.active ? 'S\u00ed' : 'No'),
               if (product.chickenCount != null) _detailRow('Cantidad pollos', product.chickenCount!.toString()),
@@ -214,7 +219,7 @@ class _InventoryViewScreenState extends State<InventoryViewScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontFeatures: [FontFeature.tabularFigures()])),
         ],
       ),
     );

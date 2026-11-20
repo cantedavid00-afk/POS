@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../../shared/models/employee.dart';
 import '../../../../shared/models/store.dart';
 import '../../../../core/theme/glass_theme.dart';
+import '../../../../shared/extensions/phone_x.dart';
+import '../../../../shared/extensions/string_x.dart';
+import '../../../../shared/widgets/bottom_padding.dart';
 
 class EmployeesViewScreen extends StatefulWidget {
   final String businessId;
@@ -56,7 +59,9 @@ class _EmployeesViewScreenState extends State<EmployeesViewScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16).copyWith(
+              bottom: BottomPadding.of(context, minimum: 16),
+            ),
             itemCount: filtered.length,
             itemBuilder: (context, index) {
               final employee = filtered[index];
@@ -66,8 +71,8 @@ class _EmployeesViewScreenState extends State<EmployeesViewScreen> {
                     backgroundColor: employee.isAdmin ? AppColors.accent : Colors.grey,
                     child: Text(employee.name[0], style: const TextStyle(color: Colors.white)),
                   ),
-                  title: Text(employee.name),
-                  subtitle: Text('${employee.role} · ${employee.email}'),
+                  title: Text(employee.name.orPlaceholder()),
+                  subtitle: Text('${employee.role.orPlaceholder()} · ${employee.email.orPlaceholder()}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -107,7 +112,7 @@ class _EmployeesViewScreenState extends State<EmployeesViewScreen> {
           // In real implementation, call repository
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${employee.name} desactivado')),
+          SnackBar(content: Text('${employee.name.orPlaceholder()} desactivado')),
         );
         break;
     }
@@ -157,7 +162,7 @@ class _EmployeesViewScreenState extends State<EmployeesViewScreen> {
     final isEditing = employee != null;
     final nameController = TextEditingController(text: employee?.name ?? '');
     final emailController = TextEditingController(text: employee?.email ?? '');
-    final phoneController = TextEditingController(text: employee?.phone ?? '');
+    final phoneController = TextEditingController(text: (employee?.phone ?? '').maskPhoneNumber);
     final roleController = DropdownButtonFormField<String>(
       value: employee?.role ?? 'cashier',
       items: const [
@@ -174,6 +179,7 @@ class _EmployeesViewScreenState extends State<EmployeesViewScreen> {
       builder: (context) => AlertDialog(
         title: Text(isEditing ? 'Editar empleado' : 'Nuevo empleado'),
         content: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -181,7 +187,7 @@ class _EmployeesViewScreenState extends State<EmployeesViewScreen> {
               const SizedBox(height: 12),
               TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Correo', border: OutlineInputBorder())),
               const SizedBox(height: 12),
-              TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Telefono', border: OutlineInputBorder())),
+              TextField(controller: phoneController, keyboardType: TextInputType.phone, inputFormatters: [phoneNumberInputFormatter], decoration: const InputDecoration(labelText: 'Telefono', border: OutlineInputBorder())),
               const SizedBox(height: 12),
               Text('Rol', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),

@@ -6,6 +6,7 @@ import 'package:pos_flutter_firebase/shared/models/product.dart';
 import 'package:pos_flutter_firebase/shared/models/product_stock.dart';
 import 'package:pos_flutter_firebase/features/products/domain/product_repository.dart';
 import 'package:pos_flutter_firebase/features/inventory/domain/stock_repository.dart';
+import 'package:pos_flutter_firebase/shared/widgets/bottom_padding.dart';
 
 class ProductGrid extends StatefulWidget {
   const ProductGrid({
@@ -116,7 +117,9 @@ class _ProductGridState extends State<ProductGrid> {
             }
             return GridView.builder(
               key: const PageStorageKey('pos_product_grid'),
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12).copyWith(
+                bottom: BottomPadding.of(context, minimum: 12),
+              ),
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 220,
                 mainAxisSpacing: 12,
@@ -141,22 +144,40 @@ class _ProductButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (product.presentationType == 'image' && product.localImagePath != null) {
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.file(File(product.localImagePath!), fit: BoxFit.cover),
-              _bottomOverlay(context),
-            ],
+      final path = product.localImagePath!;
+      bool exists = false;
+      try {
+        exists = path.isNotEmpty && File(path).existsSync();
+      } catch (_) {
+        exists = false;
+      }
+      if (exists) {
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.file(
+                  File(path),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => _colorCard(context),
+                ),
+                _bottomOverlay(context),
+              ],
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
-    final color = Color(product.presentationColor);
+    final color = Color(product.presentationColor == 0 ? 0xFF9E9E9E : product.presentationColor);
 
+    return _colorCard(context, color);
+  }
+
+  Widget _colorCard(BuildContext context, [Color? override]) {
+    final color = override ?? Color(product.presentationColor == 0 ? 0xFF9E9E9E : product.presentationColor);
     return Card(
       color: color,
       child: InkWell(
@@ -176,7 +197,7 @@ class _ProductButton extends StatelessWidget {
               Text(product.name, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
               if (product.trackStock)
                 Text('Stock: ${_formatQty(product.stockQuantity)}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-              Text('\$${product.price.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+              Text('\${product.price.humanizedCount(decimalDigits: 2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
             ],
           ),
         ),

@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'core/offline/local_database.dart';
@@ -15,6 +16,7 @@ import 'core/offline/sync_handlers.dart';
 import 'core/theme/glass_theme.dart';
 import 'core/di/service_locator.dart';
 import 'core/router/app_router.dart';
+import 'shared/providers/changelog_notifier.dart';
 import 'shared/providers/theme_provider.dart';
 import 'shared/providers/app_session_notifier.dart';
 import 'shared/providers/cart_provider.dart';
@@ -44,6 +46,7 @@ Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await dotenv.load(fileName: '.env');
+    await initializeDateFormatting('es');
 
     try {
       await Firebase.initializeApp(
@@ -90,6 +93,7 @@ Future<void> main() async {
         providers: [
           ChangeNotifierProvider(create: (_) => ThemeNotifier()),
           ChangeNotifierProvider(create: (_) => FontSizeNotifier()),
+          ChangeNotifierProvider(create: (_) => ChangelogNotifier()),
           ChangeNotifierProvider(
             create: (_) => AppSessionNotifier(
               appContextService: _serviceLocator.appContextRepository,
@@ -137,6 +141,7 @@ class MyApp extends StatelessWidget {
             darkTheme: GlassTheme.dark(),
             themeMode: themeNotifier.mode,
             routerConfig: goRouter,
+            scrollBehavior: const AlwaysScrollbarBehavior(),
             builder: (context, child) {
               ErrorWidget.builder = (errorDetails) {
                 return Scaffold(
@@ -158,11 +163,24 @@ class MyApp extends StatelessWidget {
                   ),
                 );
               };
-              return child!;
+              return RouteTitle(child: child!);
             },
           ),
         );
       },
+    );
+  }
+}
+
+/// Scrollbar visible en móvil; en escritorio el sistema ya la dibuja.
+class AlwaysScrollbarBehavior extends MaterialScrollBehavior {
+  const AlwaysScrollbarBehavior();
+
+  @override
+  Widget buildScrollbar(context, child, details) {
+    return Scrollbar(
+      controller: details.controller,
+      child: child,
     );
   }
 }

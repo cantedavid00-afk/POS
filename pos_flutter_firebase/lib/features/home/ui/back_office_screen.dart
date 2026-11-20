@@ -16,6 +16,22 @@ import '../../../features/products/domain/product_repository.dart';
 import '../../../features/sales/domain/sale_repository.dart';
 import '../../../features/shift/domain/shift_repository.dart';
 import '../../../features/inventory/domain/stock_repository.dart';
+import '../../../shared/extensions/date_time_x.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/extensions/phone_x.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/widgets/bottom_padding.dart';
+import 'desktop/admin/admin_theme_tokens.dart';
+import 'desktop/admin/widgets/admin_card.dart';
+import 'desktop/admin/widgets/admin_data_table.dart';
+import 'desktop/admin/widgets/admin_status_badge.dart';
+
+/// Cantidad con unidad según forma de venta: kg (peso/volumen) o Pz (unidad).
+String _qtyWithUnit(double value, String sellBy) {
+  final num = value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+  return sellBy == 'weight' ? '$num kg' : '$num Pz';
+}
 
 class BackOfficeScreen extends StatefulWidget {
   const BackOfficeScreen({
@@ -77,6 +93,7 @@ class _BackOfficeScreenState extends State<BackOfficeScreen> with SingleTickerPr
         ],
         bottom: TabBar(
           controller: _tabController,
+          onTap: (_) => HapticsHelper.light(),
           tabs: const [
             Tab(text: 'Reportes'),
             Tab(text: 'Inventario'),
@@ -159,7 +176,9 @@ class _ReportsTabState extends State<_ReportsTab> {
             final summary = _ReportSummary.fromSales(sales, employeeNames: employeeNames);
 
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16).copyWith(
+                bottom: BottomPadding.of(context, minimum: 16),
+              ),
               children: [
                 _filterCard(context),
                 const SizedBox(height: 12),
@@ -210,7 +229,7 @@ class _ReportsTabState extends State<_ReportsTab> {
           children: [
             Text('Rango de fechas', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            Text('${_formatDate(_startDate)} - ${_formatDate(_endDate)}'),
+            Text('${_startDate.formattedDate('es')} - ${_endDate.formattedDate('es')}'),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -296,7 +315,7 @@ class _ReportsTabState extends State<_ReportsTab> {
               children: [
                 Text(metric.$1),
                 const SizedBox(height: 8),
-                Text('\$${metric.$2.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleLarge),
+                Text('\$${metric.$2.humanizedCount(decimalDigits: 2)}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontFeatures: [FontFeature.tabularFigures()])),
               ],
             ),
           ),
@@ -325,7 +344,7 @@ class _ReportsTabState extends State<_ReportsTab> {
                     (entry) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(entry.key),
-                      trailing: Text('\$${entry.value.toStringAsFixed(2)}'),
+                      trailing: Text('\$${entry.value.humanizedCount(decimalDigits: 2)}'),
                     ),
                   ),
           ],
@@ -360,7 +379,7 @@ class _ReportsTabState extends State<_ReportsTab> {
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         child: Column(
                           children: [
-                            Text('\$${entry.value.toStringAsFixed(0)}', style: const TextStyle(fontSize: 10)),
+                            Text('\$${entry.value.humanizedCount(decimalDigits: 0)}', style: const TextStyle(fontSize: 10, fontFeatures: [FontFeature.tabularFigures()])),
                             const SizedBox(height: 4),
                             Expanded(
                               child: Align(
@@ -378,7 +397,7 @@ class _ReportsTabState extends State<_ReportsTab> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(entry.key.substring(5), style: const TextStyle(fontSize: 10)),
+                            Text(DateTime.parse(entry.key).formattedDate('es'), style: const TextStyle(fontSize: 10)),
                           ],
                         ),
                       ),
@@ -414,9 +433,9 @@ class _ReportsTabState extends State<_ReportsTab> {
               ...sorted.take(30).map(
                     (sale) => ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text(sale.folio),
-                      subtitle: Text(_formatDate(sale.createdAt ?? sale.clientCreatedAt)),
-                      trailing: Text('\$${sale.total.toStringAsFixed(2)}'),
+                      title: Text(sale.folio.orPlaceholder()),
+                      subtitle: Text((sale.createdAt ?? sale.clientCreatedAt).formattedDate('es')),
+                      trailing: Text('\$${sale.total.humanizedCount(decimalDigits: 2)}', style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()])),
                     ),
                   ),
           ],
@@ -459,9 +478,9 @@ class _ReportsTabState extends State<_ReportsTab> {
                 else
                   ...shifts.map((s) => ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text('Cierre ${_formatDate(s.closedAt)}'),
-                    subtitle: Text('Sucursal: ${_storeName(s.storeId)} | Efectivo: \$${s.expectedCash.toStringAsFixed(2)}'),
-                    trailing: Text('\$${s.totalSales.toStringAsFixed(2)}'),
+                    title: Text('Cierre ${s.closedAt.formattedDateTime('es')}'),
+                    subtitle: Text('Sucursal: ${_storeName(s.storeId)} | Efectivo: \$${s.expectedCash.humanizedCount(decimalDigits: 2)}'),
+                    trailing: Text('\$${s.totalSales.humanizedCount(decimalDigits: 2)}'),
                     onTap: () => _showCorteDetail(context, s, employeeNames),
                   )),
               ],
@@ -477,7 +496,7 @@ class _ReportsTabState extends State<_ReportsTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Corte ${_formatDate(shift.closedAt)}'),
+        title: Text('Corte ${shift.closedAt.formattedDateTime('es')}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -485,18 +504,18 @@ class _ReportsTabState extends State<_ReportsTab> {
             children: [
               _detailRow('Sucursal', _storeName(shift.storeId)),
               _detailRow('Empleado', employeeName),
-              _detailRow('Abierto', _formatDate(shift.openedAt)),
-              _detailRow('Cerrado', _formatDate(shift.closedAt)),
+              _detailRow('Abierto', shift.openedAt.formattedDateTime('es')),
+              _detailRow('Cerrado', shift.closedAt.formattedDateTime('es')),
               const Divider(),
-              _detailRow('Fondo inicial', '\$${(shift.openingCash).toStringAsFixed(2)}'),
-              _detailRow('Total ventas', '\$${(shift.totalSales).toStringAsFixed(2)}'),
-              _detailRow('Total reembolsos', '-\$${(shift.cashRefunds).toStringAsFixed(2)}'),
-              _detailRow('Depositos', '\$${(shift.depositsTotal).toStringAsFixed(2)}'),
-              _detailRow('Salidas', '-\$${(shift.payoutsTotal).toStringAsFixed(2)}'),
+              _detailRow('Fondo inicial', '\$${(shift.openingCash).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Total ventas', '\$${(shift.totalSales).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Total reembolsos', '-\$${(shift.cashRefunds).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Depositos', '\$${(shift.depositsTotal).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Salidas', '-\$${(shift.payoutsTotal).humanizedCount(decimalDigits: 2)}'),
               const Divider(),
-              _detailRow('Efectivo esperado', '\$${(shift.expectedCash).toStringAsFixed(2)}'),
-              _detailRow('Efectivo contado', '\$${(shift.closingCash ?? 0).toStringAsFixed(2)}'),
-              _detailRow('Diferencia', '\$${(shift.cashDifference).toStringAsFixed(2)}',
+              _detailRow('Efectivo esperado', '\$${(shift.expectedCash).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Efectivo contado', '\$${(shift.closingCash ?? 0).humanizedCount(decimalDigits: 2)}'),
+              _detailRow('Diferencia', '\$${(shift.cashDifference).humanizedCount(decimalDigits: 2)}',
                   valueStyle: TextStyle(
                     color: shift.cashDifference >= 0 ? Colors.green : Colors.red,
                     fontWeight: FontWeight.bold,
@@ -508,13 +527,13 @@ class _ReportsTabState extends State<_ReportsTab> {
                   child: Text('Movimiento de inventario', style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
                 if (shift.chickensReceived > 0)
-                  _detailRow('Pollos recibidos', '${shift.chickensReceived} (${shift.kgReceived.toStringAsFixed(2)} kg)'),
+                  _detailRow('Pollos recibidos', '${shift.chickensReceived.humanizedCount()} (${shift.kgReceived.humanizedCount(decimalDigits: 2)} kg)'),
                 if (shift.chickensButchered > 0)
-                  _detailRow('Pollos destazados', '${shift.chickensButchered} (${shift.kgButchered.toStringAsFixed(2)} kg)'),
+                  _detailRow('Pollos destazados', '${shift.chickensButchered.humanizedCount()} (${shift.kgButchered.humanizedCount(decimalDigits: 2)} kg)'),
                 if (shift.transfersSent > 0)
-                  _detailRow('Traspasos enviados', '${shift.transfersSent}'),
+                  _detailRow('Traspasos enviados', '${shift.transfersSent.humanizedCount()}'),
                 if (shift.transfersReceived > 0)
-                  _detailRow('Traspasos recibidos', '${shift.transfersReceived}'),
+                  _detailRow('Traspasos recibidos', '${shift.transfersReceived.humanizedCount()}'),
               ],
             ],
           ),
@@ -585,11 +604,6 @@ class _ReportsTabState extends State<_ReportsTab> {
       _endDate = DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59);
     });
   }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Fecha pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-  }
 }
 
 class _InventoryTab extends StatefulWidget {
@@ -623,6 +637,15 @@ class _InventoryTabState extends State<_InventoryTab> {
 
   @override
   Widget build(BuildContext context) {
+    // TODAS las sucursales: mostrar tabla de stocks por sucursal.
+    // Antes se usaba Stream.empty() y todo aparecía en 0 (bug reportado).
+    // La ruta de sucursal única de abajo queda intacta.
+    if (widget.selectedStoreId == null) {
+      return _AllStoresInventoryView(
+        businessId: widget.businessId,
+        stores: widget.stores,
+      );
+    }
     return StreamBuilder<List<Product>>(
       stream: context.read<ProductRepository>().watchProducts(businessId: widget.businessId),
       builder: (context, productsSnapshot) {
@@ -660,7 +683,9 @@ class _InventoryTabState extends State<_InventoryTab> {
             final lowStock = tracked.where((product) => product.stockQuantity <= product.lowStockAlertQuantity).toList();
 
             return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16).copyWith(
+            bottom: BottomPadding.of(context, minimum: 16),
+          ),
           children: [
             Card(
               child: ListTile(
@@ -675,18 +700,22 @@ class _InventoryTabState extends State<_InventoryTab> {
             ),
             const SizedBox(height: 12),
             ...tracked.map(
-              (product) => Card(
-                child: ListTile(
-                  title: Text(product.name),
-                  subtitle: Text('Stock: ${_formatQuantity(product.stockQuantity)} · Bajo: ${_formatQuantity(product.lowStockAlertQuantity)}'),
-                  trailing: FilledButton.tonal(
-                    onPressed: widget.selectedStoreId == null
-                        ? null
-                        : () => _showAdjustDialog(context, product),
-                    child: const Text('Ajustar'),
+              (product) {
+                final unit = product.sellBy == 'weight' ? 'kg' : 'Pz';
+                return Card(
+                  child: ListTile(
+                    title: Text(product.name.orPlaceholder()),
+                    subtitle: Text(
+                        'Stock: ${_formatQuantity(product.stockQuantity)} $unit · Bajo: ${_formatQuantity(product.lowStockAlertQuantity)} $unit'),
+                    trailing: FilledButton.tonal(
+                      onPressed: widget.selectedStoreId == null
+                          ? null
+                          : () => _showAdjustDialog(context, product),
+                      child: const Text('Ajustar'),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
             const SizedBox(height: 16),
             Text('Movimientos recientes', style: Theme.of(context).textTheme.titleMedium),
@@ -707,6 +736,7 @@ class _InventoryTabState extends State<_InventoryTab> {
                   children: movements.take(20).map((movement) {
                     String subtitle = movement.typeLabel;
                     if (movement.reason.isNotEmpty) subtitle = '$subtitle · ${movement.reason}';
+                    final movementStore = _storeName(movement.storeId);
                     if (movement.type == 'transfer') {
                       final from = (movement.fromStoreName?.isNotEmpty == true)
                           ? movement.fromStoreName!
@@ -716,7 +746,11 @@ class _InventoryTabState extends State<_InventoryTab> {
                           : _storeName(movement.toStoreId);
                       if (from.isNotEmpty && to.isNotEmpty) {
                         subtitle = '$subtitle\nDe $from → Para $to';
+                      } else if (movementStore.isNotEmpty) {
+                        subtitle = '$subtitle\n$movementStore';
                       }
+                    } else if (movementStore.isNotEmpty) {
+                      subtitle = '$subtitle\n$movementStore';
                     }
                     final isWeight = sellByMap[movement.productId] == 'weight';
                     final unit = isWeight ? 'kg' : 'Pz';
@@ -724,7 +758,7 @@ class _InventoryTabState extends State<_InventoryTab> {
                         ? '+${_formatQuantity(movement.difference)} $unit'
                         : '${_formatQuantity(movement.difference)} $unit';
                     return ListTile(
-                      title: Text(movement.productName),
+                      title: Text(movement.productName.orPlaceholder()),
                       subtitle: Text(subtitle),
                       trailing: Text(qtyStr),
                     );
@@ -752,8 +786,8 @@ class _InventoryTabState extends State<_InventoryTab> {
                     final isWeight = sellByMap[movement.productId] == 'weight';
                     final unit = isWeight ? 'kg' : 'Pz';
                     return ListTile(
-                      title: Text(movement.productName),
-                      subtitle: Text('${movement.typeLabel} · ${movement.reason} · ${_formatDate(movement.createdAt)}'),
+                      title: Text(movement.productName.orPlaceholder()),
+                      subtitle: Text('${movement.typeLabel} · ${movement.reason.orPlaceholder()} · ${movement.createdAt.formattedDateTime('es')}'),
                       trailing: Text('-${_formatQuantity(movement.difference.abs())} $unit'),
                     );
                   }).toList(),
@@ -791,8 +825,8 @@ class _InventoryTabState extends State<_InventoryTab> {
                             ? 'Sobran pollos'
                             : type;
                     final subtitle = type == 'excess_kg'
-                        ? 'Quedan ${remainingKg.toStringAsFixed(2)} kg · 0 pollos'
-                        : 'Quedan $remainingChickens pollos · 0 kg';
+                        ? 'Quedan ${remainingKg.humanizedCount(decimalDigits: 2)} kg · 0 pollos'
+                        : 'Quedan ${remainingChickens.humanizedCount()} pollos · 0 kg';
 
                     return Card(
                       child: ListTile(
@@ -802,7 +836,7 @@ class _InventoryTabState extends State<_InventoryTab> {
                         ),
                         title: Text('$typeLabel · $employeeName'),
                         subtitle: Text(subtitle),
-                        trailing: Text('${butcheredKg.toStringAsFixed(1)} kg / $butcheredChickens pollos',
+                        trailing: Text('${butcheredKg.humanizedCount(decimalDigits: 1)} kg / ${butcheredChickens.humanizedCount()} pollos',
                             style: const TextStyle(fontSize: 12)),
                       ),
                     );
@@ -845,14 +879,192 @@ class _InventoryTabState extends State<_InventoryTab> {
     }
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Fecha pendiente';
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
   String _formatQuantity(double value) {
     if (value % 1 == 0) return value.toStringAsFixed(0);
     return value.toStringAsFixed(2);
+  }
+}
+
+/// Inventario TODAS las sucursales para Back Office.
+/// Muestra stock por sucursal + total. Solo lectura: para ajustar,
+/// seleccionar una sucursal (el diálogo de ajuste exige storeId único).
+class _AllStoresInventoryView extends StatelessWidget {
+  const _AllStoresInventoryView({required this.businessId, required this.stores});
+
+  final String businessId;
+  final List<Store> stores;
+
+  Future<Map<String, Map<String, double>>> _loadStocks(List<Product> products) async {
+    final db = FirebaseFirestore.instance;
+    final result = <String, Map<String, double>>{};
+    final targetStores = stores.take(8).toList();
+    for (final p in products.take(120)) {
+      final perStore = <String, double>{};
+      for (final s in targetStores) {
+        try {
+          final doc = await db
+              .collection('businesses')
+              .doc(businessId)
+              .collection('products')
+              .doc(p.id)
+              .collection('stockByStore')
+              .doc(s.id)
+              .get();
+          if (doc.exists) {
+            final data = doc.data() ?? {};
+            perStore[s.id] = ((data['stockQuantity'] as num?) ?? 0).toDouble();
+          } else {
+            perStore[s.id] = 0; // Sin doc = 0, sin fallback legacy.
+          }
+        } catch (_) {
+          perStore[s.id] = 0;
+        }
+      }
+      result[p.id] = perStore;
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Product>>(
+      stream: context.read<ProductRepository>().watchProducts(businessId: businessId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+        final products = (snapshot.data ?? const <Product>[]).where((p) => p.trackStock).toList();
+        if (products.isEmpty) {
+          return const Center(child: Text('Sin productos con inventario.'));
+        }
+        return FutureBuilder<Map<String, Map<String, double>>>(
+          future: _loadStocks(products),
+          builder: (context, stockSnap) {
+            if (stockSnap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (stockSnap.hasError) {
+              return Center(child: Text('Error stock: ${stockSnap.error}'));
+            }
+            final stocks = stockSnap.data ?? const <String, Map<String, double>>{};
+            final targetStores = stores.take(8).toList();
+            final sellByMap = {for (final p in products) p.id: p.sellBy};
+            String storeName(String? id) => stores
+                .firstWhere((s) => s.id == id,
+                    orElse: () => const Store(id: '', name: '', address: '', phone: '', active: false))
+                .name;
+            return ListView(
+              padding: EdgeInsets.all(16).copyWith(
+                bottom: BottomPadding.of(context, minimum: 16),
+              ),
+              children: [
+                AdminCard(
+                  title: 'Todas las sucursales',
+                  subtitle: 'Solo lectura. Selecciona una sucursal arriba para ajustar inventario.',
+                  child: AdminDataTable(
+                    rowMinHeight: 64,
+                    columns: [
+                      const AdminColumn(label: 'Producto', flex: 3),
+                      for (final s in targetStores)
+                        AdminColumn(
+                          label: s.name.isEmpty ? '—' : s.name,
+                          width: 104,
+                          align: Alignment.center,
+                        ),
+                      const AdminColumn(
+                        label: 'Total',
+                        width: 110,
+                        align: Alignment.centerRight,
+                        headerAlign: Alignment.centerRight,
+                      ),
+                      const AdminColumn(label: 'Estado', width: 110),
+                    ],
+                    rows: [
+                      for (final p in products.take(120))
+                        [
+                          Text(p.name.orPlaceholder(),
+                              style: AdminText.body.copyWith(fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                          for (final s in targetStores)
+                            Text(
+                              _qtyWithUnit(stocks[p.id]?[s.id] ?? 0, p.sellBy),
+                              style: AdminText.body,
+                            ),
+                          Text(
+                            _qtyWithUnit(
+                              (stocks[p.id]?.values ?? const <double>[])
+                                  .fold<double>(0, (t, v) => t + v),
+                              p.sellBy,
+                            ),
+                            style: AdminText.body.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          AdminStatusBadge.stock(
+                            total: (stocks[p.id]?.values ?? const <double>[])
+                                .fold<double>(0, (t, v) => t + v),
+                            alert: p.lowStockAlertQuantity,
+                          ),
+                        ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                AdminCard(
+                  title: 'Movimientos recientes',
+                  subtitle: 'Todas las sucursales',
+                  child: StreamBuilder<List<InventoryMovement>>(
+                    stream: context.read<InventoryRepository>().watchMovements(businessId: businessId),
+                    builder: (context, movSnap) {
+                      final movements = (movSnap.data ?? const <InventoryMovement>[]).take(20).toList();
+                      if (movements.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text('Sin movimientos.', style: AdminText.bodySmall),
+                        );
+                      }
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final m in movements)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(m.productName.orPlaceholder(),
+                                            style: AdminText.body
+                                                .copyWith(fontWeight: FontWeight.w600)),
+                                        Text(
+                                          '${m.typeLabel}${m.reason.isNotEmpty ? ' · ${m.reason}' : ''} · ${storeName(m.storeId).isEmpty ? '—' : storeName(m.storeId)}',
+                                          style: AdminText.bodySmall,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    '${m.difference >= 0 ? '+' : ''}${_qtyWithUnit(m.difference, sellByMap[m.productId] ?? '')}',
+                                    style: AdminText.body.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }
 
@@ -877,18 +1089,20 @@ class _EmployeesTab extends StatelessWidget {
           final employees = snapshot.data ?? const <Employee>[];
           if (employees.isEmpty) return const Center(child: Text('Todavia no hay empleados registrados.'));
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16).copyWith(
+              bottom: BottomPadding.of(context, minimum: 16),
+            ),
             itemCount: employees.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final employee = employees[index];
               return ListTile(
                 leading: Icon(employee.active ? Icons.person : Icons.person_off),
-                title: Text(employee.name),
+                title: Text(employee.name.orPlaceholder()),
                 subtitle: Text(
                   [
                     if (employee.email.isNotEmpty) employee.email,
-                    if (employee.phone.isNotEmpty) employee.phone,
+                    if (employee.phone.isNotEmpty) employee.phone.maskPhoneNumber,
                     employee.role,
                     if (employee.pinVisible.isNotEmpty) 'PIN: ${employee.pinVisible}',
                   ].join(' · '),
@@ -1246,29 +1460,36 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
     return AlertDialog(
       title: Text(isEditing ? 'Editar empleado' : 'Nuevo empleado'),
       content: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameController,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'Correo (opcional)', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              inputFormatters: [phoneNumberInputFormatter],
               decoration: const InputDecoration(labelText: 'Telefono (opcional)', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _pinController,
               keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
               obscureText: true,
               decoration: InputDecoration(
                 labelText: 'PIN',
@@ -1297,15 +1518,18 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
             ...widget.stores.map(
               (store) => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(store.name),
+                title: Text(store.name.orPlaceholder()),
                 value: _storeIds.contains(store.id),
-                onChanged: (value) => setState(() {
-                  if (value == true) {
-                    _storeIds.add(store.id);
-                  } else {
-                    _storeIds.remove(store.id);
-                  }
-                }),
+                onChanged: (value) {
+                  HapticsHelper.light();
+                  setState(() {
+                    if (value == true) {
+                      _storeIds.add(store.id);
+                    } else {
+                      _storeIds.remove(store.id);
+                    }
+                  });
+                },
               ),
             ),
             const SizedBox(height: 8),
@@ -1321,20 +1545,26 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
                 value: _permissions.contains(entry.$1),
                 onChanged: _role == 'admin'
                     ? null
-                    : (value) => setState(() {
-                        if (value == true) {
-                          _permissions.add(entry.$1);
-                        } else {
-                          _permissions.remove(entry.$1);
-                        }
-                      }),
+                    : (value) {
+                        HapticsHelper.light();
+                        setState(() {
+                          if (value == true) {
+                            _permissions.add(entry.$1);
+                          } else {
+                            _permissions.remove(entry.$1);
+                          }
+                        });
+                      },
               ),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Activo'),
               value: _active,
-              onChanged: (value) => setState(() => _active = value),
+              onChanged: (value) {
+                HapticsHelper.light();
+                setState(() => _active = value);
+              },
             ),
             if (_errorMessage != null) Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
           ],
@@ -1385,7 +1615,7 @@ class _EmployeeDialogState extends State<_EmployeeDialog> {
   void _submit() {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
+    final phone = _phoneController.text.unmaskPhoneNumber;
     final pin = _pinController.text.trim();
     final isEditing = widget.employee != null;
 

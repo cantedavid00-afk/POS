@@ -7,6 +7,10 @@ import '../../../shared/models/employee.dart';
 import '../../../shared/models/store.dart';
 import '../../../shared/models/butcher_section.dart';
 import '../../../shared/models/product_stock.dart';
+import '../../../shared/extensions/num_x.dart';
+import '../../../shared/extensions/string_x.dart';
+import '../../../shared/utils/haptics_helper.dart';
+import '../../../shared/widgets/bottom_padding.dart';
 import '../../../core/theme/glass_container.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../inventory/domain/stock_repository.dart';
@@ -168,7 +172,7 @@ class _ButcherScreenState extends State<ButcherScreen> {
     if (weight > _wholeStockKg) {
       _showError(
         'No hay suficiente peso de pollo entero. '
-        'Disponible: ${_wholeStockKg.toStringAsFixed(2)} kg',
+        'Disponible: ${_wholeStockKg.humanizedCount(decimalDigits: 2)} kg',
       );
       return;
     }
@@ -204,6 +208,7 @@ class _ButcherScreenState extends State<ButcherScreen> {
       );
 
       if (!mounted) return;
+      HapticsHelper.success();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Destazado registrado correctamente')),
       );
@@ -217,6 +222,7 @@ class _ButcherScreenState extends State<ButcherScreen> {
   }
 
   void _showError(String msg) {
+    HapticsHelper.error();
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
   }
@@ -250,7 +256,9 @@ class _ButcherScreenState extends State<ButcherScreen> {
       body: _loadingConfig
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16).copyWith(
+                bottom: BottomPadding.of(context, minimum: 16),
+              ),
               children: [
                 _buildStockCard(isDark),
                 const SizedBox(height: 16),
@@ -305,7 +313,7 @@ class _ButcherScreenState extends State<ButcherScreen> {
                       fontWeight: FontWeight.w700,
                       fontSize: 14)),
               Text(
-                '${_wholeStockKg.toStringAsFixed(2)} kg',
+                '${_wholeStockKg.humanizedCount(decimalDigits: 2)} kg',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
@@ -313,7 +321,7 @@ class _ButcherScreenState extends State<ButcherScreen> {
                 ),
               ),
               if (_wholeStockCount > 0)
-                Text('$_wholeStockCount pollos',
+                Text('${_wholeStockCount.humanizedCount()} pollos',
                     style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey[500])),
@@ -381,7 +389,7 @@ class _ButcherScreenState extends State<ButcherScreen> {
                   style: TextStyle(
                       fontWeight: FontWeight.w700, fontSize: 16)),
               const Spacer(),
-              Text('Total real: ${totalActual.toStringAsFixed(2)} kg',
+              Text('Total real: ${totalActual.humanizedCount(decimalDigits: 2)} kg',
                   style: TextStyle(fontSize: 12, color: Colors.grey[500])),
             ],
           ),
@@ -403,19 +411,19 @@ class _ButcherScreenState extends State<ButcherScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(s.section.name,
+                          Text(s.section.name.orPlaceholder(),
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold)),
                           Text(
-                            'Esperado: ${s.expectedKg.toStringAsFixed(2)} kg '
-                            '(${(s.section.percentage * 100).toStringAsFixed(1)}%)',
+                            'Esperado: ${s.expectedKg.humanizedCount(decimalDigits: 2)} kg '
+                            '(${(s.section.percentage * 100).humanizedCount(decimalDigits: 1)}%)',
                             style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600]),
                           ),
                           if (deviation.abs() > 5)
                             Text(
-                              '${deviation.toStringAsFixed(1)}%',
+                              '${deviation.humanizedCount(decimalDigits: 1)}%',
                               style: const TextStyle(
                                   color: Colors.orange,
                                   fontSize: 12),
@@ -468,16 +476,16 @@ class _ButcherScreenState extends State<ButcherScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Text('Esperado: ${totalExpected.toStringAsFixed(2)} kg',
+              Text('Esperado: ${totalExpected.humanizedCount(decimalDigits: 2)} kg',
                   style: TextStyle(fontSize: 13, color: Colors.grey[600])),
               const SizedBox(width: 16),
-              Text('Real: ${totalActual.toStringAsFixed(2)} kg',
+              Text('Real: ${totalActual.humanizedCount(decimalDigits: 2)} kg',
                   style: TextStyle(fontSize: 13, color: Colors.grey[600])),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Merma: ${merma.toStringAsFixed(2)} kg (${mermaPct.toStringAsFixed(1)}%)',
+            'Merma: ${merma.humanizedCount(decimalDigits: 2)} kg (${mermaPct.humanizedCount(decimalDigits: 1)}%)',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
