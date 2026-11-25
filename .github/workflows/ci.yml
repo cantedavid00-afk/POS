@@ -25,6 +25,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Misma versión que en desarrollo: las más nuevas exigen otra versión de Gradle.
+          flutter-version: 3.44.4
           cache: true
 
       - name: Prepare .env (asset requerido por la app)
