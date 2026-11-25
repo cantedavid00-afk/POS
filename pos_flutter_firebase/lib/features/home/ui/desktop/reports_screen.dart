@@ -1,11 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../../shared/models/employee.dart';
 import '../../../../shared/models/store.dart';
 import '../../../../shared/models/sale.dart';
-import '../../../../shared/providers/app_session_notifier.dart';
 import '../../../../core/theme/glass_theme.dart';
 import '../../../../shared/extensions/num_x.dart';
 import '../../../../shared/extensions/string_x.dart';

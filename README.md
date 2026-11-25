@@ -1,11 +1,11 @@
 # POS Mobile System — Offline-First Point of Sale for a Poultry Shop
 
+[![CI](https://github.com/cantedavid00-afk/POS/actions/workflows/ci.yml/badge.svg)](https://github.com/cantedavid00-afk/POS/actions/workflows/ci.yml)
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-DD2C00?style=flat-square&logo=firebase&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-34A853?style=flat-square&logo=android&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows&logoColor=white)
-![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 
 A point-of-sale app for a local poultry business with more than one branch: sales, cash shifts, stock per branch, transfers, losses and management reports. It runs on Android phones and tablets, and also includes a desktop admin dashboard.
 

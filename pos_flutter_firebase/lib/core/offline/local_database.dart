@@ -246,7 +246,7 @@ class LocalDatabase {
   static Map<String, dynamic>? getPinLockout(String employeeId) {
     final data = _pinLockout.get(employeeId);
     if (data == null) return null;
-    return Map<String, dynamic>.from(data as Map);
+    return Map<String, dynamic>.from(data);
   }
 
   static Future<void> savePinLockout(String employeeId, Map<String, dynamic> data) async {

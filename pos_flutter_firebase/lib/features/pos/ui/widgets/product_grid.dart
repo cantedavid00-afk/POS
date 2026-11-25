@@ -7,6 +7,7 @@ import 'package:pos_flutter_firebase/shared/models/product_stock.dart';
 import 'package:pos_flutter_firebase/features/products/domain/product_repository.dart';
 import 'package:pos_flutter_firebase/features/inventory/domain/stock_repository.dart';
 import 'package:pos_flutter_firebase/shared/widgets/bottom_padding.dart';
+import 'package:pos_flutter_firebase/shared/extensions/num_x.dart';
 
 class ProductGrid extends StatefulWidget {
   const ProductGrid({
@@ -197,7 +198,7 @@ class _ProductButton extends StatelessWidget {
               Text(product.name, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
               if (product.trackStock)
                 Text('Stock: ${_formatQty(product.stockQuantity)}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-              Text('\${product.price.humanizedCount(decimalDigits: 2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+              Text('\$${product.price.humanizedCount(decimalDigits: 2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
             ],
           ),
         ),

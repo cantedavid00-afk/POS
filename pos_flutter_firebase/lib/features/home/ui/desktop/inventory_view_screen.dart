@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/models/employee.dart';
 import '../../../../shared/models/product.dart';
-import '../../../../shared/models/product_stock.dart';
 import '../../../../shared/models/store.dart';
-import '../../../inventory/domain/inventory_repository.dart';
-import '../../../products/domain/product_repository.dart';
-import '../../../../shared/models/inventory_movement.dart';
 import '../../../../core/theme/glass_theme.dart';
 import '../../../../shared/extensions/num_x.dart';
 import '../../../../shared/extensions/string_x.dart';

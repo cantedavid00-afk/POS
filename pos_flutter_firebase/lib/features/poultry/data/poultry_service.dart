@@ -113,7 +113,7 @@ class PoultryService implements PoultryRepository {
 
     await _db.runTransaction((txn) async {
       final stockDoc = await txn.get(stockRef);
-      final data = stockDoc.data() as Map<String, dynamic>?;
+      final data = stockDoc.data();
       final previousStock = (data?['stockQuantity'] as num? ?? 0).toDouble();
       final previousCount = data?['chickenCount'] as int? ?? 0;
       final newStock = previousStock + receiving.totalWeightKg;

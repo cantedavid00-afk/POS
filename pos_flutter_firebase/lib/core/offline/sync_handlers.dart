@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:meta/meta.dart';
 
-import 'package:pos_flutter_firebase/features/butcher/data/butcher_stock_service.dart';
 import 'package:pos_flutter_firebase/shared/extensions/num_x.dart';
 
 import 'sync_service.dart';
@@ -861,7 +860,7 @@ Future<void> _handleAdjustStock(Map<String, dynamic> data) async {
       throw StateError('El producto ya no existe');
     }
     final stockDoc = await txn.get(stockRef);
-    final stockData = stockDoc.data() as Map<String, dynamic>?;
+    final stockData = stockDoc.data();
     final previousStock = ((stockData?['stockQuantity'] ?? 0.0) as num).toDouble();
     final difference = newQuantity - previousStock;
 
@@ -1083,7 +1082,7 @@ Future<void> _handlePoultryReceiving(Map<String, dynamic> data) async {
     if (existingReceipt != null && existingReceipt.exists) return;
 
     final stockDoc = await txn.get(stockRef);
-    final stockData = stockDoc.data() as Map<String, dynamic>?;
+    final stockData = stockDoc.data();
     final previousStock = (stockData?['stockQuantity'] as num? ?? 0).toDouble();
     final previousCount = stockData?['chickenCount'] as int? ?? 0;
     final newStock = previousStock + totalWeightKg;
@@ -1167,7 +1166,7 @@ Future<void> _handleSendTransfer(Map<String, dynamic> data) async {
             .collection('products').doc(productId)
             .collection('stockByStore').doc(fromStoreId);
         final stockDoc = await txn.get(stockRef);
-        final stockData = stockDoc.data() as Map<String, dynamic>?;
+        final stockData = stockDoc.data();
         final currentQty = (stockData?['stockQuantity'] as num?)?.toDouble() ?? 0;
         final currentChickens = (stockData?['chickenCount'] as num?)?.toInt() ?? 0;
         final newQty = (currentQty - sentQuantity).clamp(0.0, double.infinity);
@@ -1357,7 +1356,7 @@ Future<Map<String, String>> _resolveTrackedProducts(String businessId, Iterable<
         .limit(1)
         .get();
     if (products.docs.isEmpty) continue;
-    final data = products.docs.first.data() as Map<String, dynamic>;
+    final data = products.docs.first.data();
     if (data['trackStock'] != true) continue;
     result[name] = products.docs.first.id;
   }
@@ -1407,7 +1406,7 @@ Future<void> _handleButcherEntry(Map<String, dynamic> data) async {
     for (final entry in stockRefs.entries) {
       final snap = await txn.get(entry.value);
       currentStocks[entry.key] =
-          (((snap.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
+          (((snap.data())?['stockQuantity'] ?? 0.0) as num).toDouble();
     }
 
     txn.set(receiptRef, {
@@ -1488,7 +1487,7 @@ Future<void> _handleButcherCancelEntry(Map<String, dynamic> data) async {
     for (final entry in stockRefs.entries) {
       final snap = await txn.get(entry.value);
       currentStocks[entry.key] =
-          (((snap.data() as Map<String, dynamic>?)?['stockQuantity'] ?? 0.0) as num).toDouble();
+          (((snap.data())?['stockQuantity'] ?? 0.0) as num).toDouble();
     }
 
     void applyDelta(_YieldRecord y, String targetStoreId, int multiplier) {
@@ -1586,7 +1585,7 @@ Future<void> _handleButchering(Map<String, dynamic> data) async {
     if (existingRec != null && existingRec.exists) return;
 
     final wholeStockDoc = await txn.get(wholeStockRef);
-    final wholeData = wholeStockDoc.data() as Map<String, dynamic>?;
+    final wholeData = wholeStockDoc.data();
     final currentWholeStock = (wholeData?['stockQuantity'] as num? ?? 0).toDouble();
     final currentChickenCount = wholeData?['chickenCount'] as int? ?? 0;
 
@@ -1599,7 +1598,7 @@ Future<void> _handleButchering(Map<String, dynamic> data) async {
       if (productId == null) continue;
       final sectionRef = productsRef.doc(productId).collection('stockByStore').doc(storeId);
       final sectionDoc = await txn.get(sectionRef);
-      final sectionData = sectionDoc.data() as Map<String, dynamic>?;
+      final sectionData = sectionDoc.data();
       sectionStocks[name] = (
         productId: productId,
         productName: sectionNames[name] ?? name,

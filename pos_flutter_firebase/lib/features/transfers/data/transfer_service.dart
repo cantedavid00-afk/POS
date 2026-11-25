@@ -65,7 +65,7 @@ class TransferService implements TransferRepository {
             .collection('stockByStore')
             .doc(transfer.fromStoreId);
         final stockDoc = await transaction.get(stockRef);
-        final stockData = stockDoc.data() as Map<String, dynamic>?;
+        final stockData = stockDoc.data();
         final currentQty = (stockData?['stockQuantity'] as num?)?.toDouble() ?? 0;
         final currentChickens = (stockData?['chickenCount'] as num?)?.toInt() ?? 0;
         final newQty = (currentQty - item.sentQuantity).clamp(0.0, double.infinity);
@@ -176,7 +176,7 @@ class TransferService implements TransferRepository {
             .collection('stockByStore')
             .doc(toStoreId);
         final toDoc = await transaction.get(toStockRef);
-        final toData = toDoc.data() as Map<String, dynamic>?;
+        final toData = toDoc.data();
         stockSnapshots['to_${item.productId}'] =
             (toData?['stockQuantity'] as num?)?.toDouble() ?? 0;
         chickenSnapshots['to_${item.productId}'] =

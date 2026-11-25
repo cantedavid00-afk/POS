@@ -1,5 +1,4 @@
 import '../../../shared/models/product.dart';
-import '../../../shared/models/product_stock.dart';
 import '../../inventory/domain/inventory_repository.dart';
 import '../../inventory/domain/stock_repository.dart';
 import '../domain/loss_repository.dart';

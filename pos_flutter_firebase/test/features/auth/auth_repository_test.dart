@@ -173,7 +173,7 @@ void main() {
         'invalid-email': 'Correo invalido',
         'weak-password': 'La contrasena debe tener al menos 6 caracteres',
         'invalid-credential': 'Correo o contrasena incorrectos',
-        'unknown-code': 'Error: unknown-code',
+        'unknown-code': 'No pudimos entrar. Verifica tu correo y contrasena (Error: unknown-code)',
       };
 
       for (final entry in testCases.entries) {
